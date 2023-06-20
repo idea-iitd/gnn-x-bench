@@ -42,4 +42,14 @@ python source/basegnn.py --dataset <dataset_name> --gnn_type <gnn_type> --runs 1
 
 We modified GAT, GIN, SAGE implementation of PyTorch Geometric to support our training pipeline. You can find the modified version of the code in `source/wrappers/` directory.
 
+### Training Explainers
 
+Each explainer has their own code and training pipeline. You can find the code for each explainer in `source/` directory.
+
+We also provide shell scripts to run and get results from the explainers. You can find the scripts in main directory. For example, to run the GNNExplainer, you can run the following command:
+
+```setup
+./gnnexplainer.sh
+```
+
+Please check the script files to see which command should be run to receive which results.
