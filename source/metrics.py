@@ -7,6 +7,7 @@ from torchmetrics.functional import mean_squared_error as torch_mse
 
 import torch
 import numpy as np
+from tqdm import tqdm
 
 from torch_geometric.data import Data
 from torch_geometric.transforms import RemoveIsolatedNodes, ToUndirected
@@ -72,7 +73,7 @@ def faithfulness(gnn_model, original_graphs, explanations, k, metric_names, devi
 
     explanations_out, original_graphs_out = [], []
 
-    for i in range(len(explanations)):
+    for i in tqdm(range(len(explanations))):
         if explanations[i].edge_index.shape[1] > 0 and not explanations[i].edge_weight.sum().isnan().item():
             directed_edge_weight = explanations[i].edge_weight[explanations[i].edge_index[0] <= explanations[i].edge_index[1]]
             directed_edge_index = explanations[i].edge_index[:, explanations[i].edge_index[0] <= explanations[i].edge_index[1]]
@@ -141,7 +142,7 @@ def robustness(explanations, explanations_under_noise, top_k, metric_names):
     assert len(explanations) == len(explanations_under_noise)
 
     scores = {metric_name: [] for metric_name in metric_names}
-    for i in range(len(explanations)):
+    for i in tqdm(range(len(explanations))):
         if explanations[i].edge_index.shape[1] > 0 and not explanations[i].edge_weight.sum().isnan().item():
             edge_index = explanations[i].edge_index.t().detach().cpu()
             edge_index_under_noise = explanations_under_noise[i].edge_index.t().detach().cpu()
@@ -192,7 +193,7 @@ def faithfulness_with_removal(gnn_model, original_graphs, explanations, k, metri
 
     explanations_out, original_graphs_out = [], []
 
-    for i in range(len(explanations)):
+    for i in tqdm(range(len(explanations))):
         if explanations[i].edge_index.shape[1] > 0 and not explanations[i].edge_weight.sum().isnan().item():
             directed_edge_weight = explanations[i].edge_weight[explanations[i].edge_index[0] <= explanations[i].edge_index[1]]
             directed_edge_index = explanations[i].edge_index[:, explanations[i].edge_index[0] <= explanations[i].edge_index[1]]
