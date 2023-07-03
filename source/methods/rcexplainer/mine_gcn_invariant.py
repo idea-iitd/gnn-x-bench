@@ -1,7 +1,5 @@
-from queue import PriorityQueue
 import cv2
 import numpy as np
-import torch
 
 H = 224
 W = 224
@@ -230,7 +228,7 @@ class OracleSP():
         return self._buf_ids_f
 
     # init the precomputed statistics
-    def _init_precomp_stat_peter(self, old_inv_X_):
+    def _init_precomp_stat_rce(self, old_inv_X_):
         # initializes all kinds of precomputed statistics
         # such as self._buf_colsum_f, self._buf_colnum_f, self._fval_X and self._buf_vec_g
 
@@ -250,7 +248,7 @@ class OracleSP():
         # init the buffer of merged cols for new_inv_Y=all zeros
         self._buf_vec_g = np.ones(self._g_N, dtype=bool)  # all True
 
-    def _compute_nom_j_peter(self, j_, old_inv_X_):
+    def _compute_nom_j_rce(self, j_, old_inv_X_):
         nom_j = -1
 
         if old_inv_X_[j_] == True:
@@ -273,7 +271,7 @@ class OracleSP():
 
         return nom_j
 
-    def _compute_denom_j_peter(self, j_):
+    def _compute_denom_j_rce(self, j_):
         gval_Y = self._g_N_weighted - np.sum(np.dot(self._buf_vec_g, self._g_N_weights))
         # gval_Y = self._g_N - np.sum(self._buf_vec_g)
         if isinstance(self._match_mat_g, np.ndarray):
@@ -290,7 +288,7 @@ class OracleSP():
 
         return denom_j
 
-    def _compute_gval_mval_peter(self, old_inv_X_, new_inv_Y_):
+    def _compute_gval_mval_rce(self, old_inv_X_, new_inv_Y_):
         # compute g_val
         g_val = self._g_N - np.sum(self._buf_vec_g)  # the g_val of new_inv_Y (with sel_j)
 
@@ -299,15 +297,15 @@ class OracleSP():
 
         for _, j in np.ndenumerate(np.where(old_inv_X_ & ~new_inv_Y_)):
             if j.size > 0:
-                m_val -= self._compute_nom_j_peter(j, old_inv_X_)
+                m_val -= self._compute_nom_j_rce(j, old_inv_X_)
 
         for _, j in np.ndenumerate(np.where(new_inv_Y_ & ~old_inv_X_)):
             if j.size > 0:
-                m_val += self._compute_nom_j_peter(j, old_inv_X_)
+                m_val += self._compute_nom_j_rce(j, old_inv_X_)
 
         return np.asscalar(g_val), np.asscalar(m_val)
 
-    def _update_by_j_peter(self, sel_j_):
+    def _update_by_j_rce(self, sel_j_):
         # update precomputed statistics self._buf_vec_g
         if isinstance(self._match_mat_g, np.ndarray):
             match_mat_g_colj = self._match_mat_g[:, sel_j_]
@@ -316,7 +314,7 @@ class OracleSP():
 
         self._buf_vec_g = self._buf_vec_g & match_mat_g_colj
 
-    def compute_fval_peter(self, invariant_):
+    def compute_fval_rce(self, invariant_):
         colsum_f = np.sum(self._match_mat_f[:, invariant_], axis=1)
         colnum_f = np.sum(invariant_)
         f_val = self._f_N - np.sum(colsum_f == colnum_f)
@@ -325,7 +323,7 @@ class OracleSP():
 
         return f_val, f_val_idx
 
-    def compute_gval_peter(self, invariant_):
+    def compute_gval_rce(self, invariant_):
         colsum_g = np.sum(self._match_mat_g[:, invariant_], axis=1)
         colnum_g = np.sum(invariant_)
         g_val = self._g_N - np.sum(colsum_g == colnum_g)
@@ -335,7 +333,7 @@ class OracleSP():
         return g_val, g_val_idx
 
 
-# This is the core of our invariant mining algorithm.
+# This is the core of the invariant mining algorithm.
 # This solves the submodular minimization with submodular constraint problem.
 # AG means Accelerated Greedy version using priority queue.
 class SubmodularMinerAG():
@@ -371,93 +369,6 @@ class SubmodularMinerAG():
 
         return invariant, f_val, g_val
 
-    def mineInvariant_peter(self, delta_constr_=0):
-        # this uses greedy submodular minimization with constraints to mine
-        # the invariant w.r.t. the sample with idx_
-        # the real constraint is self._g_N - delta_constr_, where self._g_N is the total number of training data for g.
-        self._constr = self._oracle._g_N - delta_constr_
-
-        # start iteration
-        old_m_val = self._oracle._f_N * 2  # double _f_N to make sure m_val is an upper bound
-        invariant = np.zeros(self._oracle._D, dtype=bool)  # this is an indicator vector of selected dimensions
-        total_invariant = np.zeros(self._oracle._D, dtype=bool)  # will use this to store all previous selected boundaries
-        iter = 0
-        while True and iter < 5:  # number of iterations
-            iter += 1
-            new_invariant, g_val, m_val = self._mineInvariantCore_peter(invariant)
-
-            total_invariant = np.maximum(total_invariant, new_invariant)  # keep track of boundaries that have been selected at some point
-
-            if np.array_equal(new_invariant, invariant):
-                invariant = new_invariant
-                break
-            else:
-                invariant = new_invariant
-                old_m_val = m_val
-
-        # print('Total Boundaries: ', np.sum(total_invariant))
-        removal_pool = total_invariant.copy()
-        record = total_invariant.copy()
-        min_f_val = 100000
-        for turn in range(1):
-
-            invariant = removal_pool.copy()
-            while True:
-                location = np.where(invariant == 1)[0]
-                max = 0
-                arg = -1
-                for i in range(len(location)):
-                    invariant_temp = invariant.copy()
-                    invariant_temp[location[i]] = 0
-                    self._buf_colsum_f = np.sum(self.mat_1[:, invariant_temp], axis=1)
-                    self._buf_colnum_f = np.sum(invariant_temp)
-                    self._fval_X = np.sum(self._buf_colsum_f == self._buf_colnum_f)
-                    self._buf_colsum_g = np.sum(self.mat_2[:, invariant_temp], axis=1)
-                    self._buf_colnum_g = np.sum(invariant_temp)
-                    self._gval_X = self.mat_2.shape[0] - np.sum(self._buf_colsum_g == self._buf_colnum_g)
-                    if self._gval_X > self.mat_2.shape[0] - 0.01 * self._fval_X and self._fval_X > max:  # Forgiving for misclassification
-                        arg = location[i]
-                        max = self._fval_X
-                        max_save = self._fval_X
-
-                if arg != -1:
-                    invariant[arg] = 0
-
-                if arg == -1:
-                    break
-
-            f_val, f_val_idx = self._oracle.compute_fval_peter(invariant)
-            first = np.where(invariant == 1)[0][0:5]
-            # print('Turn {}: {}'.format(turn, max_save))
-            removal_pool[first] = 0
-            if f_val < min_f_val:
-                min_f_val = f_val
-                record = invariant
-
-        return record, f_val, g_val  # m_val, f_val_idx # invariant
-
-    def _init_sel_queue_peter(self, old_inv_X_):
-        sel_queue = PriorityQueue()
-        for j in range(self._oracle._D):
-            # compute nom_vec_j
-            nom_j = self._oracle._compute_nom_j_peter(j, old_inv_X_)
-
-            # Reduce the advantage of previous selected boundaries
-            if nom_j == 0:
-                nom_j = 1
-
-            # compute denom_vec_j
-            denom_j = self._oracle._compute_denom_j_peter(j)
-
-            # compute the ratio
-            if denom_j > 0:
-                # we do not put j into queue when denom_vec_j=0
-                # because, we will never select such a j.
-                lb_ratio = nom_j / denom_j  # the lower bound of ratio
-                sel_queue.put((lb_ratio, j))
-
-        return sel_queue
-
     def _tightenInvariant(self, invariant_):
         new_bits = 0
         for j in range(self._oracle._D):
@@ -473,26 +384,16 @@ class SubmodularMinerAG():
 
     def _lossenInvariant(self, invariant_):
         new_bits = 0
-        record_f = self._oracle.compute_fval_peter(invariant_)[0]
-        record_g = self._oracle.compute_gval_peter(invariant_)[0]
+        record_f = self._oracle.compute_fval_rce(invariant_)[0]
+        record_g = self._oracle.compute_gval_rce(invariant_)[0]
         for j in range(self._oracle._D):
             if invariant_[j] == True:
 
                 temp = invariant_.copy()
                 temp[j] = 0
-                if self._oracle.compute_fval_peter(temp)[0] == record_f and self._oracle.compute_gval_peter(temp)[0] == record_g:
+                if self._oracle.compute_fval_rce(temp)[0] == record_f and self._oracle.compute_gval_rce(temp)[0] == record_g:
                     invariant_[j] = False
                     new_bits += 1
-        '''
-        idd = 0
-        for k in range(self._oracle._D):
-            if invariant_[k] == True:
-                print('Decision Boundary {}'.format(idd))
-                idd += 1
-                temp = np.repeat(False, len(invariant_))
-                temp[k] = True
-                print(self._oracle.compute_fval_peter(temp)[0], self._oracle.compute_gval_peter(temp)[0])
-        '''
 
         # print('new_bits: ', new_bits)
 
@@ -524,23 +425,6 @@ class SubmodularMinerAG():
 
         return new_inv_Y, self._oracle.compute_fval(), self._oracle.compute_gval()
 
-    def _mineInvariantCore_peter(self, old_inv_X_):
-        # init the precomputed statistics
-        self._oracle._init_precomp_stat_peter(old_inv_X_)
-
-        # init selection queue storing the lower bound of each selection ratio
-        sel_queue = self._init_sel_queue_peter(old_inv_X_)
-
-        # start iteration
-        g_val = 0
-        m_val = self._oracle._f_N
-        new_inv_Y = np.zeros(self._oracle._D, dtype=bool)
-        # margin = min(margin, 500)
-        while (g_val < self._constr) and (not sel_queue.empty()):
-            g_val, m_val = self._select_j_and_update_peter(old_inv_X_, new_inv_Y, sel_queue)
-
-        return new_inv_Y, g_val, m_val
-
     def _select_j_and_update(self, new_inv_Y_):
         ratio_vec = self._oracle._compute_ratio_vec()
         ratio_vec[new_inv_Y_] = 1e10
@@ -549,147 +433,6 @@ class SubmodularMinerAG():
 
         new_inv_Y_[sel_j] = True
         self._oracle._update_by_j(sel_j)
-
-        return sel_j
-
-    def _select_j_and_update_peter(self, old_inv_X_, new_inv_Y_, sel_queue_):
-        assert not sel_queue_.empty()
-        # init sel_j
-        sel_j = -1
-        # we have more than one choices of sel_j
-        while sel_queue_.queue.__len__() >= 2:
-
-            top_item = sel_queue_.get()
-            candi_j = top_item[1]
-
-            if candi_j == 1127:
-                leon = 1
-
-            real_nom_j = self._oracle._compute_nom_j_peter(candi_j, old_inv_X_)
-
-            # Reduce the advantage of previous selected boundariesz
-            if real_nom_j == 0:
-                real_nom_j = 1
-
-            real_denom_j = self._oracle._compute_denom_j_peter(candi_j)
-
-            assert real_denom_j >= 0
-            if real_denom_j == 0:
-                # the real_denom_j can be 0, because new_inv_Y_ is being updated
-                continue
-
-            real_ratio = real_nom_j / real_denom_j
-
-            peek_lb_ratio = sel_queue_.queue[0][0]
-            if real_ratio > peek_lb_ratio:
-                sel_queue_.put((real_ratio, candi_j))
-            else:
-                sel_j = candi_j
-                # print(candi_j, ' is selected, with ratio: ', real_nom_j, real_denom_j)
-                break
-
-        if sel_j == -1:
-            assert sel_queue_.queue.__len__() == 1
-
-            # only one choice of sel_j left
-            top_item = sel_queue_.get()
-            candi_j = top_item[1]
-
-            real_denom_j = self._oracle._compute_denom_j_peter(candi_j)
-
-            assert real_denom_j >= 0
-            if real_denom_j > 0:
-                sel_j = candi_j
-
-        assert sel_j >= 0 or sel_j == -1
-
-        if sel_j >= 0:
-            # we found a valid sel_j, thus do update by sel_j
-            # update new_inv_Y_ by sel_j
-            new_inv_Y_[sel_j] = True
-
-            # update oracle by sel_j
-            self._oracle._update_by_j_peter(sel_j)
-
-        # compute g_val and m_val for return (Leon: this may waste time if sel_j = -1)
-        g_val, m_val = self._oracle._compute_gval_mval_peter(old_inv_X_, new_inv_Y_)
-        return g_val, m_val
-
-    def OLD_select_j_and_update(self, new_inv_Y_):
-        sel_j = -1  # init sel_j
-
-        noloss_queue = PriorityQueue()
-        sel_queue = PriorityQueue()
-
-        for candi_j in range(self._oracle._D):
-            if new_inv_Y_[candi_j] == False:
-                nom_j = self._oracle._compute_nom_j(candi_j)
-                denom_j = self._oracle._compute_denom_j(candi_j)
-
-                if denom_j > 0:
-                    if nom_j == 0:
-                        ratio_j = 1.0 / denom_j
-                        noloss_queue.put((ratio_j, candi_j))
-                    else:
-                        ratio_j = nom_j / denom_j
-                        sel_queue.put((ratio_j, candi_j))
-
-        if not noloss_queue.empty():
-            top_item = noloss_queue.get()
-            sel_j = top_item[1]
-        elif not sel_queue.empty():
-            top_item = sel_queue.get()
-            sel_j = top_item[1]
-
-        assert sel_j >= 0 or sel_j == -1
-
-        if sel_j >= 0:
-            new_inv_Y_[sel_j] = True
-            self._oracle._update_by_j(sel_j)
-
-        return sel_j
-
-    def OLD_select_j_and_update(self, new_inv_Y_):
-        buget = self._constr - self._oracle.compute_gval()
-        assert buget >= 0
-
-        sel_j = -1  # init sel_j
-
-        purecut_queue = PriorityQueue()
-        noloss_queue = PriorityQueue()
-        sel_queue = PriorityQueue()
-
-        for candi_j in range(self._oracle._D):
-            if new_inv_Y_[candi_j] == False:
-                nom_j = self._oracle._compute_nom_j(candi_j)
-                denom_j = self._oracle._compute_denom_j(candi_j)
-
-                if denom_j >= buget:
-                    ratio_j = nom_j / denom_j
-                    purecut_queue.put((ratio_j, candi_j))
-                elif denom_j > 0:
-                    if nom_j == 0:
-                        ratio_j = 1.0 / denom_j
-                        noloss_queue.put((ratio_j, candi_j))
-                    else:
-                        ratio_j = nom_j / denom_j
-                        sel_queue.put((ratio_j, candi_j))
-
-        if not purecut_queue.empty():
-            top_item = purecut_queue.get()
-            sel_j = top_item[1]
-        elif not noloss_queue.empty():
-            top_item = noloss_queue.get()
-            sel_j = top_item[1]
-        elif not sel_queue.empty():
-            top_item = sel_queue.get()
-            sel_j = top_item[1]
-
-        assert sel_j >= 0 or sel_j == -1
-
-        if sel_j >= 0:
-            new_inv_Y_[sel_j] = True
-            self._oracle._update_by_j(sel_j)
 
         return sel_j
 
@@ -706,40 +449,3 @@ class SubmodularMinerAG():
         accuracy = num_correct_samples / num_total_samples
 
         return accuracy, num_total_samples, match_row_indi
-
-    # a simple test of submodularMiner
-    # @staticmethod
-    # def test_code():
-    #     import time
-    #
-    #     # generate data
-    #     N = 25
-    #     D = 8
-    #     IDX = 0
-    #
-    #     # seed = int(np.asscalar(np.random.rand(1)*10000))
-    #     seed = 1699
-    #     print('================================')
-    #     print('seed: %d' % (seed))
-    #     np.random.seed(seed)
-    #
-    #     configs = np.zeros([N, D], dtype='bool')
-    #     configs[np.random.rand(N, D) > 0.5] = True
-    #     labels = np.zeros(N)
-    #     labels[np.random.rand(N) > 0.5] = 1
-    #
-    #     f_indi = (labels == labels[IDX])
-    #     g_indi = ~f_indi
-    #
-    #     match_mat_f = configs[f_indi]
-    #     match_mat_g = configs[g_indi]
-    #
-    #     print(match_mat_f)
-    #     print('num_rows_f: %d\n' % (np.sum(f_indi)))
-    #     print(match_mat_g)
-    #     print('num_rows_g: %d\n' % (np.sum(g_indi)))
-    #
-    #     m_subminer = SubmodularMinerAG(match_mat_f, match_mat_g)
-    #     invariant = m_subminer.mineInvariant()
-    #
-    #     print(invariant)

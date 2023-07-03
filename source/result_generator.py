@@ -10,14 +10,14 @@ import metrics
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                        choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                        choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Graph-SST2', 'DD', 'REDDIT-B'],
                         help="Dataset name")
     parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'], help='GNN layer type to use.')
     parser.add_argument('--device', type=str, default="0", help='Index of cuda device to use. Default is 0.')
     parser.add_argument('--gnn_run', type=int, default=1, help='random seed for gnn run')
     parser.add_argument('--explainer_run', type=int, default=1, help='random seed for explainer run')
-    parser.add_argument('--explainer_name', type=str, choices=['pgexplainer', 'tagexplainer', 'tagexplainer_1', 'tagexplainer_2', 'gnnexplainer_old',
-                                                               'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphxplainer'],
+    parser.add_argument('--explainer_name', type=str, choices=['pgexplainer', 'tagexplainer_1', 'tagexplainer_2', 'cff_1.0',
+                                                               'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphx'],
                         help='Name of explainer to use.')
     parser.add_argument('--explanation_metric', type=str, choices=['faithfulness', 'faithfulness_with_removal', 'faithfulness_on_test', 'stability_noise', 'stability_seed', 'stability_base'],
                         help='Explanation metric to use.')
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() and args.device != 'cpu' else 'cpu')
     dataset = data_utils.load_dataset(args.dataset)
     splits, indices = data_utils.split_data(dataset)
-    if args.explainer_name == 'subgraphxplainer':
+    if args.explainer_name == 'subgraphx':
         # we only have explanations for test set
         explanations = data_utils.load_explanations_test(args.dataset, args.explainer_name, args.gnn_type, torch.device('cpu'), args.explainer_run)
         dataset = dataset[indices[2]]  # test only

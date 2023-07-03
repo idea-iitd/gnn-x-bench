@@ -206,6 +206,7 @@ random.seed(args.explainer_run)
 
 if args.dataset in ['Graph-SST2']:
     args.lr = args.lr * 0.05  # smaller lr for large dataset
+    args.beta_ = args.beta_ * 10  # to make the explanations more sparse
 
 adj, feat, label, num_nodes, node_embs_pads = get_rce_format(dataset, node_embeddings)
 explainer = ExplainModule(
@@ -214,6 +215,12 @@ explainer = ExplainModule(
     device=device,
     args=args
 )
+
+if args.dataset in ['Mutagenicity']:
+    args.beta_ = args.beta_ * 30
+
+if args.dataset in ['NCI1']:
+    args.beta_ = args.beta_ * 300
 
 if not args.robustness:
     explainer, last_epoch = train_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, args, train_indices, val_indices, device)

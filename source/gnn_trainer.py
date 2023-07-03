@@ -116,7 +116,10 @@ class GNNTrainer:
             self.dataset = data_utils.load_dataset(self.dataset_name)
         elif self.task == 'reproducibility':
             assert self.explainer_name is not None
-            self.dataset = data_utils.load_explanations(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
+            if self.explainer_name == 'subgraphx':  # only for subgraphx because of time constraints
+                self.dataset = data_utils.load_explanations_test(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
+            else:
+                self.dataset = data_utils.load_explanations(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
             self.dataset = data_utils.select_top_k_explanations(self.dataset, self.top_k)
 
         splits, indices = data_utils.split_data(self.dataset)
@@ -239,7 +242,7 @@ class GNNTrainer:
         best_valid = float('inf')
         patience = int(self.epochs / 5)
         cur_patience = 0
-        for _ in tqdm(range(self.epochs), desc='Epoch'):
+        for _ in range(self.epochs):
             self.train()
             valid_loss = self.eval(self.valid_loader)[0]
             if valid_loss < best_valid:

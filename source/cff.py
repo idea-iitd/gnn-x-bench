@@ -8,7 +8,8 @@ import math
 
 import data_utils
 from gnn_trainer import GNNTrainer
-from torch_geometric.data import Data, DataLoader
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 
 """
 This is an adaptation of CFF code from: https://github.com/chrisjtan/gnn_cff
@@ -112,14 +113,12 @@ class GraphExplainerEdge(torch.nn.Module):
             bpr1, bpr2, l1, loss = explainer.loss(
                 pred1, pred2, self.args.gam, self.args.lam, self.args.alp)
 
-            print(loss.item())
             loss.backward()
             optimizer.step()
 
         # Get explanation and evaluation.
         explainer.eval()
         masked_adj = explainer.get_masked_adj()
-        print(masked_adj)
         binarized_mask = (masked_adj > self.args.mask_thresh).to(torch.float32)
         pred1, pred2 = explainer(self.base_model, binarized_mask)
         sufficiency = int(pred1 > 0.5)  # Whether explanatory subgraph is original.

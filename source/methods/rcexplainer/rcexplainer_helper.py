@@ -1,13 +1,10 @@
-import time
 import torch
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
 
-from torch_geometric.data import Data, DataLoader
-from torch_geometric.utils import dense_to_sparse
-
 import torch.optim as optim
+from methods.rcexplainer.mine_gcn_invariant import SubmodularMinerAG, InvariantClassifierGlb
 
 
 class Struct_BB():
@@ -170,7 +167,7 @@ class RuleMinerLargeCandiPool():
 
                 vec_order = np.argsort(vec[0])
                 out1 = vec_order[-1]  # index of the largest element, which is the output
-                out2 = vec_order[-2]  # index of the second largest element
+                out2 = vec_order[-2]  # index of the second-largest element
 
                 if (vec[0][out1] - vec[0][out2]) ** 2 < 0.00001 and out1 == self._label:
                     break
@@ -233,21 +230,12 @@ class RuleMinerLargeCandiPool():
         match_mat_f = (train_configs[indi_f, :] - tgt_config == 0)
         match_mat_g = (train_configs[indi_g, :] - tgt_config == 0)
 
-        from methods.rcexplainer.dnn_invariant.algorithms.mine_gcn_invariant import SubmodularMinerAG, InvariantClassifierGlb
-
         submodu_miner = SubmodularMinerAG(match_mat_f, match_mat_g, np.where(indi_f), np.where(indi_g), False)
         invariant, f_val, g_val = submodu_miner.mineInvariant(delta_constr_=delta_constr_)
 
         cover_indi = self._getCoveredIndi(invariant, tgt_config[invariant])
 
-        # print("invariant: ", self._bb.bb.shape, invariant.shape)
-        #
-        # print("cover indi: ", cover_indi.shape, tgt_label, org_train_labels_[cover_indi][:10])
-        # print(invariant)
-        # print(self._bb.bb[:,0])
-        # exit()
         org_train_subdata = self._train_embs.float().reshape(self._train_embs.size(0), -1).cpu().numpy()[cover_indi, :]
-        # self._train_mdata._getArrayFeatures()[cover_indi, :]
         org_train_sublabels = org_train_labels_[cover_indi]
 
         array_features = self._train_embs.float().reshape(self._train_embs.size(0), -1).cpu().numpy()
@@ -359,55 +347,6 @@ def build_optimizer(args, params, weight_decay=0.0):
     elif args.opt_scheduler == 'cos':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.opt_restart)
     return scheduler, optimizer
-
-
-def check_counterfactuals(explanations, gnn_model, preds, adj, feat, num_nodes):
-    all_counterfactuals = []
-    real_counterfactuals = []
-    empty_count = 0
-    suf_count = 0
-    size = 0
-    ged = 0
-    idx = 0
-    for i, pred in enumerate(preds):
-        if pred == 0:  # original graph
-            explanation = explanations[idx]
-            idx += 1
-            num_node = num_nodes[i]
-            x = feat[i][:num_node, :]
-            a = adj[i][:num_node, :num_node]
-            m = explanation[:num_node, :num_node]  # (torch.round(torch.FloatTensor(explanation[:num_node, :num_node]) * 100) / (100)).double()
-            m = torch.from_numpy(m)
-
-            m[m > 0.5] = 1
-            m[m <= 0.5] = 0
-            c = a - m
-
-            if m.sum() == 0:
-                empty_count += 1
-
-            edge_index, edge_weight = dense_to_sparse(c)
-            d = Data(edge_index=edge_index, x=x).cuda()
-            loader = DataLoader([d], batch_size=1)
-            n_embed, g_embed, res = gnn_model(next(iter(loader)), edge_weight=edge_weight.cuda())
-            # res = output.exp()
-            all_counterfactuals.append(d.cpu())
-            if torch.argmax(res, 1)[0].item() == 1:
-                real_counterfactuals.append(d.cpu())
-
-            edge_index, edge_weight = dense_to_sparse(m)
-            d = Data(edge_index=edge_index, x=x).cuda()
-            loader = DataLoader([d], batch_size=1)
-            n_embed, g_embed, res = gnn_model(next(iter(loader)), edge_weight=edge_weight.cuda())
-            # res = output.exp()
-            if torch.argmax(res, 1)[0].item() == 0:
-                suf_count += 1
-
-            size += m.sum() / a.sum()
-            ged += m.sum() / (a.sum() + c.sum() + 4 * a.shape[0])
-
-    return all_counterfactuals, real_counterfactuals, len(real_counterfactuals) / len(all_counterfactuals), empty_count, suf_count / len(all_counterfactuals), size / len(
-        all_counterfactuals), ged / len(all_counterfactuals)
 
 
 def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, args, train_indices, val_indices, device):
@@ -600,19 +539,8 @@ class ExplainModule(nn.Module):
         self.mask_act = 'sigmoid'
         self.args = args
 
-        # self.mask = nn.Parameter(torch.FloatTensor(num_nodes, num_nodes))
-        # std = nn.init.calculate_gain("relu") * math.sqrt(
-        #     2.0 / (num_nodes + num_nodes)
-        # )
-        # with torch.no_grad():
-        #     self.mask.normal_(1.0, std)
-        #     # mask.clamp_(0.0, 1.0)
-
         self.coeffs = {
-            "size": 0.01,  # syn1, 0.009
-            # "size": 0.012,#mutag
-            # "size": 0.009,#synthetic graph
-            # "size": 0.007, #0.04 for synthetic,#0.007=>40%,#0.06,#0.005,
+            "size": 0.01,
             "feat_size": 0.0,
             "ent": 0.0,
             "feat_ent": 0.1,
@@ -621,35 +549,6 @@ class ExplainModule(nn.Module):
             "weight_decay": 0,
             "sample_bias": 0
         }
-
-    def _masked_adj(self, mask, adj):
-
-        mask = mask.to(self.device)
-        sym_mask = mask
-        sym_mask = (sym_mask.clone() + sym_mask.clone().T) / 2
-
-        # Create sparse tensor TODO: test and "maybe" a transpose is needed somewhere
-        sparseadj = torch.sparse_coo_tensor(
-            indices=torch.transpose(torch.cat([torch.unsqueeze(torch.Tensor(adj.row), -1), torch.unsqueeze(torch.Tensor(adj.col), -1)], dim=-1), 0, 1).to(torch.int64),
-            values=adj.data,
-            size=adj.shape
-        )
-
-        adj = sparseadj.coalesce().to_dense().to(torch.float32).to(self.device)  # FIXME: tf.sparse.reorder was also applied, but probably not necessary. Maybe it needs a .coalesce() too tho?
-        self.adj = adj
-
-        masked_adj = torch.mul(adj, sym_mask)
-
-        num_nodes = adj.shape[0]
-        ones = torch.ones((num_nodes, num_nodes))
-        diag_mask = ones.to(torch.float32) - torch.eye(num_nodes)
-        diag_mask = diag_mask.to(self.device)
-        return torch.mul(masked_adj, diag_mask)
-
-    def mask_density(self, adj):
-        mask_sum = torch.sum(self.masked_adj).cpu()
-        adj_sum = torch.sum(adj)
-        return mask_sum / adj_sum
 
     def concrete_sample(self, log_alpha, beta=1.0, training=True):
         """Uniform random numbers for the concrete distribution"""
