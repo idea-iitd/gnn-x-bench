@@ -1,3 +1,6 @@
 *.pyc
 .idea
 
+source/methods/clear/exp_results/
+source/methods/clear/models_save/
+source/methods/clear/src/data/
