@@ -493,37 +493,37 @@ class REDDITPreTransform(object):
         return data
 
 
-def load_dataset(dataset_name):
+def load_dataset(dataset_name, root='data/'):
     if dataset_name == 'Mutagenicity':
-        data = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        data = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
     elif "MutagenicityNoisy" in dataset_name:
         noise = int(dataset_name[17:])
-        data = MutagenicityNoisy(root='data/', noise=noise)
+        data = MutagenicityNoisy(root=root, noise=noise)
     elif dataset_name == 'Mutag':
-        data = TUDataset(root='data/', name='MUTAG', use_node_attr=True)
+        data = TUDataset(root=root, name='MUTAG', use_node_attr=True)
     elif dataset_name == 'Proteins':
-        data = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        data = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
     elif "ProteinsNoisy" in dataset_name:
         noise = int(dataset_name[13:])
-        data = ProteinsNoisy(root='data/', noise=noise)
+        data = ProteinsNoisy(root=root, noise=noise)
     elif dataset_name == 'IMDB-B':
-        data = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        data = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
     elif 'IMDBNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = IMDBNoisy(root='data/', noise=noise)
+        data = IMDBNoisy(root=root, noise=noise)
     elif dataset_name == 'AIDS':
-        data = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        data = TUDataset(root=root, name='AIDS', use_node_attr=True)
     elif 'AIDSNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = AIDSNoisy(root='data/', noise=noise)
+        data = AIDSNoisy(root=root, noise=noise)
     elif dataset_name == 'NCI1':
-        data = TUDataset(root='data/', name='NCI1', use_node_attr=True)
+        data = TUDataset(root=root, name='NCI1', use_node_attr=True)
     elif dataset_name == 'Graph-SST2':
-        data = SentiGraphDataset(root='data/', name='Graph-SST2')
+        data = SentiGraphDataset(root=root, name='Graph-SST2')
     elif dataset_name == 'DD':
-        data = TUDataset(root='data/', name='DD', use_node_attr=True)
+        data = TUDataset(root=root, name='DD', use_node_attr=True)
     elif dataset_name == 'REDDIT-B':
-        data = TUDataset(root='data/', name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+        data = TUDataset(root=root, name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
     else:
         raise NotImplementedError(f'Dataset: {dataset_name} is not implemented!')
 
