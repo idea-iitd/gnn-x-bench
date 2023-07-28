@@ -680,4 +680,7 @@ class ExplainModule(nn.Module):
 
         loss = net_boundary_loss + size_loss + mask_ent_loss
 
+        if(torch.is_tensor(boundary_loss) == False):
+            boundary_loss = torch.tensor(boundary_loss)
+        
         return loss, boundary_loss.item()
