@@ -1,6 +1,12 @@
+.vscode/
+__pycache__/
+
 *.pyc
 .idea
 
 source/methods/clear/exp_results/
 source/methods/clear/models_save/
 source/methods/clear/src/data/
+
+basegnn/
+!basegnn/*/best_model_run_1.pt

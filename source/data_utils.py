@@ -6,7 +6,7 @@ import json
 import pickle
 
 from torch_geometric.datasets import TUDataset
-from torch_geometric.utils import degree
+from torch_geometric.utils import degree, dense_to_sparse
 from torch_geometric.transforms import RemoveIsolatedNodes, ToUndirected
 
 from torch.utils.data import random_split
@@ -29,7 +29,7 @@ class MutagenicityNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(MutagenicityNoisy, self).__init__(root, transform, pre_transform)
@@ -107,7 +107,7 @@ class ProteinsNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(ProteinsNoisy, self).__init__(root, transform, pre_transform)
@@ -186,7 +186,7 @@ class IMDBNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        self.original_graphs = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
         self.graph_count = len(self.original_graphs)
 
         super(IMDBNoisy, self).__init__(root, transform, pre_transform)
@@ -265,7 +265,7 @@ class AIDSNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='AIDS', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(AIDSNoisy, self).__init__(root, transform, pre_transform)
@@ -491,6 +491,162 @@ class REDDITPreTransform(object):
         data.x = degree(data.edge_index[0], data.num_nodes, dtype=torch.long)
         data.x = F.one_hot(data.x, num_classes=3063).to(torch.float)
         return data
+
+
+class Syn1(InMemoryDataset):
+    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data = torch.load(self.processed_paths[0])
+        return
+
+    @property
+    def raw_file_names(self):
+        return "syn1.pkl"
+
+    @property
+    def processed_file_names(self):
+        return "data.pt"
+
+    def process(self):
+        print(self.raw_paths)
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_features = None
+        edge_attr = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        train_idx = data_dict['train_idx']
+        test_idx = data_dict['test_idx']
+
+        data = Data(
+            x=node_features,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            edge_features=edge_features,
+            y=y,
+            train_idx=train_idx,
+            test_idx=test_idx,
+        )
+        torch.save(data, self.processed_paths[0])
+        return
+
+
+class Syn4(InMemoryDataset):
+    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data = torch.load(self.processed_paths[0])
+        return
+
+    @property
+    def raw_file_names(self):
+        return "syn4.pkl"
+
+    @property
+    def processed_file_names(self):
+        return "data.pt"
+
+    def process(self):
+        print(self.raw_paths)
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_features = None
+        edge_attr = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        train_idx = data_dict['train_idx']
+        test_idx = data_dict['test_idx']
+
+        data = Data(
+            x=node_features,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            edge_features=edge_features,
+            y=y,
+            train_idx=train_idx,
+            test_idx=test_idx,
+        )
+        torch.save(data, self.processed_paths[0])
+        return
+
+
+class Syn5(InMemoryDataset):
+    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data = torch.load(self.processed_paths[0])
+        return
+
+    @property
+    def raw_file_names(self):
+        return "syn5.pkl"
+
+    @property
+    def processed_file_names(self):
+        return "data.pt"
+
+    def process(self):
+        print(self.raw_paths)
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_features = None
+        edge_attr = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        train_idx = data_dict['train_idx']
+        test_idx = data_dict['test_idx']
+
+        data = Data(
+            x=node_features,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            edge_features=edge_features,
+            y=y,
+            train_idx=train_idx,
+            test_idx=test_idx,
+        )
+        torch.save(data, self.processed_paths[0])
+        return
+
+
+class SmallAmazon(InMemoryDataset):
+    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data = torch.load(self.processed_paths[0])
+        return
+
+    @property
+    def raw_file_names(self):
+        return "small_amazon.pkl"
+
+    @property
+    def processed_file_names(self):
+        return "data.pt"
+
+    def process(self):
+        print(self.raw_paths)
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_features = None
+        edge_attr = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        train_idx = data_dict['train_idx']
+        test_idx = data_dict['test_idx']
+
+        data = Data(
+            x=node_features,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            edge_features=edge_features,
+            y=y,
+            train_idx=train_idx,
+            test_idx=test_idx,
+        )
+        torch.save(data, self.processed_paths[0])
+        return
 
 
 def load_dataset(dataset_name, root='data/'):

@@ -226,23 +226,44 @@ if not args.robustness:
     explainer, last_epoch = train_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, args, train_indices, val_indices, device)
     all_loss, all_explanations = evaluator_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, range(len(dataset)), device)
     explanation_graphs = []
-    counterfactual_graphs = []
+    entered = 0
+    if(args.lambda_ != 0.0):
+        counterfactual_graphs = []
     for i, graph in enumerate(dataset):
+        entered+=1
         explanation = all_explanations[i]
         explanation_adj = torch.from_numpy(explanation[:graph.num_nodes][:, :graph.num_nodes])
         edge_index = graph.edge_index
         edge_weight = explanation_adj[[index[0] for index in graph.edge_index.T], [index[1] for index in graph.edge_index.T]]
-        d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone())
-        c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone())
-        explanation_graphs.append(d)
-        counterfactual_graphs.append(c)
+       
+        if(args.lambda_ != 0.0):
+            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone())
+            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone())
+            explanation_graphs.append(d)
+            counterfactual_graphs.append(c)
+        else:
+            # print('A')
+            #added edge attributes to graphs, in order to take a forward pass with edge attributes and check if label changes for finding counterfactual explanation. 
+            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
+            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
+            label = int(graph.y)
+            pred = model(d.to(args.device), d.edge_weight.to(args.device))[-1][0]
+            pred_cf = model(c.to(args.device), c.edge_weight.to(args.device))[-1][0]
+            explanation_graphs.append({
+                "graph": d.cpu(), "graph_cf": c.cpu(),
+                "label": label, "pred": pred.cpu(), "pred_cf": pred_cf.cpu()
+            })
+    
+    print("check: ", entered, len(dataset))    
     torch.save(explanation_graphs, explanations_path)
-    torch.save(counterfactual_graphs, counterfactuals_path)
+    if(args.lambda_ != 0.0):
+        torch.save(counterfactual_graphs, counterfactuals_path)
 else:
     explainer.load_state_dict(torch.load(best_explainer_model_path, map_location=device))
     for noise in [1, 2, 3, 4, 5]:
         explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
-        counterfactuals_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
+        if(args.lambda_ != 0.0):
+            counterfactuals_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
         explanation_graphs = []
         noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
         with torch.no_grad():
@@ -260,15 +281,30 @@ else:
         adj, feat, label, num_nodes, node_embs_pads = get_rce_format(noisy_dataset, node_embeddings)
         all_loss, all_explanations = evaluator_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, range(len(noisy_dataset)), device)
         explanation_graphs = []
-        counterfactual_graphs = []
+        if(args.lambda_ != 0.0):
+            counterfactual_graphs = []
         for i, graph in enumerate(noisy_dataset):
             explanation = all_explanations[i]
             explanation_adj = torch.from_numpy(explanation[:graph.num_nodes][:, :graph.num_nodes])
             edge_index = graph.edge_index
             edge_weight = explanation_adj[[index[0] for index in graph.edge_index.T], [index[1] for index in graph.edge_index.T]]
-            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone())
-            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone())
-            explanation_graphs.append(d)
-            counterfactual_graphs.append(c)
+            if(args.lambda_ != 0.0):
+                d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone())
+                c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone())
+                explanation_graphs.append(d)
+                counterfactual_graphs.append(c)
+            else:
+                #added edge attributes to graphs, in order to take a forward pass with edge attributes and check if label changes for finding counterfactual explanation. 
+                d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
+                c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
+                label = int(graph.y)
+                pred = model(d.to(args.device), d.edge_weight.to(args.device))[-1][0]
+                pred_cf = model(c.to(args.device), c.edge_weight.to(args.device))[-1][0]
+                explanation_graphs.append({
+                    "graph": d.cpu(), "graph_cf": c.cpu(),
+                    "label": label, "pred": pred.cpu(), "pred_cf": pred_cf.cpu()
+                })
+                
         torch.save(explanation_graphs, explanations_path)
-        torch.save(counterfactual_graphs, counterfactuals_path)
+        if(args.lambda_ != 0.0):
+            torch.save(counterfactual_graphs, counterfactuals_path)
