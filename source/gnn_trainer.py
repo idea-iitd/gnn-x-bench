@@ -88,6 +88,42 @@ class GNN(torch.nn.Module):
         return node_embeddings, graph_embedding, out
 
 
+class GnnSynthetic(torch.nn.Module):
+    """3-layer GCN used in GNN Explainer synthetic tasks"""
+    def __init__(self, nfeat, nhid, nout, nclass, dropout):
+        super(GnnSynthetic, self).__init__()
+        self.gc1 = GCNConv(nfeat, nhid)
+        self.gc2 = GCNConv(nhid, nhid)
+        self.gc3 = GCNConv(nhid, nout)
+        self.fc = torch.nn.Linear(nhid + nhid + nout, nclass)
+        self.dropout = dropout
+
+    def forward(self, data, edge_weight=None):
+        x = data.x
+        edge_index = data.edge_index
+        batch = data.batch
+        target_node = data.target_node
+
+        # convert edge index to dense_adj
+        x1 = F.relu(self.gc1(x, edge_index, edge_weight))
+        x1 = F.dropout(x1, self.dropout, training=self.training)
+        x2 = F.relu(self.gc2(x1, edge_index, edge_weight))
+        x2 = F.dropout(x2, self.dropout, training=self.training)
+        x3 = self.gc3(x2, edge_index, edge_weight)
+
+        node_embeddings = torch.cat((x1, x2, x3), dim=1)
+        graph_embedding = global_max_pool(node_embeddings, batch)
+
+        x = self.fc(node_embeddings)
+        # out = F.log_softmax(x, dim=1)
+        out = x[target_node: target_node+1, :] # x[[target_node]] has different behaviours when target_node is an int and when it is a tensor.
+
+        return node_embeddings, graph_embedding, out
+
+    def loss(self, pred, label):
+        return F.nll_loss(pred, label)
+
+
 class GNNTrainer:
     def __init__(self, dataset_name, gnn_type, task, device, explainer_name=None, top_k=10):
 
@@ -140,16 +176,26 @@ class GNNTrainer:
         self.method = 'classification'
 
     def load(self, run):
-        self.model = GNN(
-            num_features=self.dataset.num_features,
-            num_classes=self.dataset.num_classes,
-            num_layers=self.num_layers,
-            dim=self.dim,
-            dropout=self.dropout,
-            layer=self.gnn_type,
-            pool=self.pool,
-        ).to(self.device)
-        self.model.load_state_dict(torch.load(os.path.join(self.gnn_folder, f'best_model_run_{run}.pt'), map_location=self.device))
+        if self.dataset_name in ['syn1', 'syn4', 'syn5']:
+            self.model = GnnSynthetic(
+                nfeat=self.dataset.num_features,
+                nhid=20,
+                nout=20,
+                nclass=self.dataset.num_classes,
+                dropout=0.0
+            ).to(self.device)
+            self.model.load_state_dict(torch.load(os.path.join(self.gnn_folder, f'gcn_3layer_{self.dataset_name}.pt'), map_location=self.device))
+        else:
+            self.model = GNN(
+                num_features=self.dataset.num_features,
+                num_classes=self.dataset.num_classes,
+                num_layers=self.num_layers,
+                dim=self.dim,
+                dropout=self.dropout,
+                layer=self.gnn_type,
+                pool=self.pool,
+            ).to(self.device)
+            self.model.load_state_dict(torch.load(os.path.join(self.gnn_folder, f'best_model_run_{run}.pt'), map_location=self.device))
         return self.model
 
     @torch.no_grad()

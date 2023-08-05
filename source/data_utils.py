@@ -13,8 +13,266 @@ from torch.utils.data import random_split
 import torch
 import torch.nn.functional as F
 
-from torch_geometric.utils import negative_sampling, sort_edge_index, to_dense_adj
+from torch_geometric.utils import negative_sampling, sort_edge_index, to_dense_adj, k_hop_subgraph, dense_to_sparse
 import random
+
+
+class Syn1(Dataset):
+    def __init__(self, root, name, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.name = name
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.graph_count = 700
+
+        super(Syn1, self).__init__(root, transform, pre_transform)
+    
+    @property
+    def num_classes(self) -> int:
+        return 4
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return [f"{self.name}.pkl"]
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    def process(self):
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_attr = None
+        edge_features = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        self.train_idx = data_dict['train_idx']
+        self.test_idx = data_dict['test_idx']
+
+        for node_idx in range(node_features.size(0)):
+            subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
+                node_idx,
+                num_hops=4, # In 4 hops, we can reach any motif node in syn1, syn4, syn5. 
+                edge_index=edge_index,
+                relabel_nodes=True
+            )
+            subgraph_node_features = node_features[subset, :]
+            subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+
+            data = Data(
+                x=subgraph_node_features,
+                edge_index=subgraph_edge_index,
+                edge_attr=edge_attr,
+                edge_features=edge_features,
+                y=subgraph_label,
+            )
+            # The target node's id will change since we are relabelling the nodes.
+            data.target_node = mapping.item()
+            torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
+
+    def len(self):
+        return len(self.processed_file_names)
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir, f'data_{idx}.pt'))
+        return data
+
+
+class Syn4(Dataset):
+    def __init__(self, root, name, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.name = name
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.graph_count = 871
+
+        super(Syn4, self).__init__(root, transform, pre_transform)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return [f"{self.name}.pkl"]
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    def process(self):
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_attr = None
+        edge_features = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        self.train_idx = data_dict['train_idx']
+        self.test_idx = data_dict['test_idx']
+
+        for node_idx in range(node_features.size(0)):
+            subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
+                node_idx,
+                num_hops=4, # In 4 hops, we can reach any motif node in syn1, syn4, syn5. 
+                edge_index=edge_index,
+                relabel_nodes=True
+            )
+            subgraph_node_features = node_features[subset, :]
+            subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+
+            data = Data(
+                x=subgraph_node_features,
+                edge_index=subgraph_edge_index,
+                edge_attr=edge_attr,
+                edge_features=edge_features,
+                y=subgraph_label,
+            )
+            # The target node's id will change since we are relabelling the nodes.
+            data.target_node = mapping.item()
+            torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
+
+    def len(self):
+        return len(self.processed_file_names)
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir, f'data_{idx}.pt'))
+        return data
+
+
+class Syn5(Dataset):
+    def __init__(self, root, name, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.name = name
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.graph_count = 1231
+
+        super(Syn5, self).__init__(root, transform, pre_transform)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return [f"{self.name}.pkl"]
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    def process(self):
+        with open(self.raw_paths[0], "rb") as file:
+            data_dict = pickle.load(file)
+        node_features = torch.FloatTensor(data_dict['feat'][0])
+        edge_index = dense_to_sparse(torch.FloatTensor(data_dict['adj'][0]))[0]
+        edge_attr = None
+        edge_features = None
+        y = torch.LongTensor(data_dict['labels'][0])
+        self.train_idx = data_dict['train_idx']
+        self.test_idx = data_dict['test_idx']
+
+        for node_idx in range(node_features.size(0)):
+            subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
+                node_idx,
+                num_hops=4, # In 4 hops, we can reach any motif node in syn1, syn4, syn5. 
+                edge_index=edge_index,
+                relabel_nodes=True
+            )
+            subgraph_node_features = node_features[subset, :]
+            subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+
+            data = Data(
+                x=subgraph_node_features,
+                edge_index=subgraph_edge_index,
+                edge_attr=edge_attr,
+                edge_features=edge_features,
+                y=subgraph_label,
+            )
+            # The target node's id will change since we are relabelling the nodes.
+            data.target_node = mapping.item()
+            torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
+
+    def len(self):
+        return len(self.processed_file_names)
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir, f'data_{idx}.pt'))
+        return data
 
 
 class MutagenicityNoisy(Dataset):
@@ -524,6 +782,12 @@ def load_dataset(dataset_name, root='data/'):
         data = TUDataset(root=root, name='DD', use_node_attr=True)
     elif dataset_name == 'REDDIT-B':
         data = TUDataset(root=root, name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+    elif dataset_name == 'syn1':
+        data = Syn1(root=root, name='syn1')
+    elif dataset_name == 'syn4':
+        data = Syn4(root=root, name='syn4')
+    elif dataset_name == 'syn5':
+        data = Syn5(root=root, name='syn5')
     else:
         raise NotImplementedError(f'Dataset: {dataset_name} is not implemented!')
 

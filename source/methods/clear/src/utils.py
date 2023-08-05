@@ -67,9 +67,16 @@ def get_items_from_list(li, idx_select):
     return items
 
 def select_dataloader(dataset, idx_select, batch_size=500, num_workers=0):
-    dataset_select = GraphData(get_items_from_list(dataset.adj_all,idx_select), get_items_from_list(dataset.feature_all,idx_select),
-                               get_items_from_list(dataset.u_all,idx_select), get_items_from_list(dataset.labels_all,idx_select),
-                               dataset.max_num_nodes, dataset.padded, index=get_items_from_list(dataset.index,idx_select))
+    dataset_select = GraphData(
+        adj_all=get_items_from_list(dataset.adj_all,idx_select),
+        features_all=get_items_from_list(dataset.feature_all,idx_select),
+        u_all=get_items_from_list(dataset.u_all,idx_select),
+        labels_all=get_items_from_list(dataset.labels_all,idx_select),
+        max_num_nodes=dataset.max_num_nodes,
+        padded=dataset.padded,
+        index=get_items_from_list(dataset.index,idx_select),
+        target_nodes=get_items_from_list(dataset.target_nodes, idx_select) if dataset.target_nodes is not None else None,
+    )
     data_loader_select = torch.utils.data.DataLoader(
         dataset_select,
         batch_size=batch_size,

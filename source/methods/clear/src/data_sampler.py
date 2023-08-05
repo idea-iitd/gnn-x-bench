@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 class GraphData(torch.utils.data.Dataset):
-    def __init__(self, adj_all, features_all, u_all, labels_all, max_num_nodes, padded=False, index=None):
+    def __init__(self, adj_all, features_all, u_all, labels_all, max_num_nodes, padded=False, index=None, target_nodes=None):
         # the input adj_all must be unpadded
         self.max_num_nodes = max_num_nodes
         self.adj_all = adj_all
@@ -12,6 +12,7 @@ class GraphData(torch.utils.data.Dataset):
         self.u_all = u_all
         self.labels_all = labels_all
         self.padded = padded
+        self.target_nodes = target_nodes
         if index is None:
             self.index = [i for i in range(len(self.adj_all))]
         else:
@@ -35,7 +36,8 @@ class GraphData(torch.utils.data.Dataset):
                 'labels': self.labels_all[idx].copy(),
                 'u': self.u_all[idx].copy(),
                 'num_node_real': self.len_all[idx],
-                'index': self.index[idx]
+                'index': self.index[idx],
+                'target_node': self.target_nodes[idx] if self.target_nodes is not None else None,
                 }
 
 

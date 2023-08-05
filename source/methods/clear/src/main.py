@@ -27,7 +27,7 @@ import plot
 import utils
 from data_sampler import GraphData
 from data_utils import load_dataset, split_data, get_noisy_dataset_name
-from gnn_trainer import GNN
+from gnn_trainer import GNN, GnnSynthetic
 
 font_sz = 28
 
@@ -61,8 +61,9 @@ parser.add_argument('--dim_h', type=int, default=16, metavar='N', help='dimensio
 # parser.add_argument('--dropout', type=float, default=0.1)
 
 parser.add_argument('-d', '--dataset', required=True, help='dataset to use',
-                    choices=["Mutagenicity", "Mutag", "Proteins", "AIDS",\
-                             "NCI1", "DD", "IMDB-B", "Graph-SST2", "REDDIT-B"])
+                    choices=["Mutagenicity", "Mutag", "Proteins", "AIDS",
+                             "NCI1", "DD", "IMDB-B", "Graph-SST2", "REDDIT-B",
+                             "syn1", "syn4", "syn5"])
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='learning rate for optimizer')
 parser.add_argument('--weight_decay', type=float, default=1e-5,
@@ -76,8 +77,16 @@ parser.add_argument('--baseline_type', default='random', choices=['IST', 'random
                     help='select baseline type: insert, random perturb, or remove edges')
 
 args = parser.parse_args()
+if args.dataset.startswith('syn'):
+    print("The following datasets only work with gcn: [syn1, syn4, syn5]")
+    print("Using layer: gcn")
+    args.layer = 'gcn'
+
 # select gpu if available
-args.weights = f"../../../../data/{args.dataset}/basegnn/{args.layer}-max/best_model_run_1.pt"
+if args.dataset in ['syn1', 'syn4', 'syn5']:
+    args.weights = f"../../../../data/{args.dataset}/basegnn/gcn-max/gcn_3layer_{args.dataset}.pt"
+else:
+    args.weights = f"../../../../data/{args.dataset}/basegnn/{args.layer}-max/best_model_run_1.pt"
 args.CFE_model_path = f'../models_save/{args.dataset}/seed_{args.seed}/{args.layer}'
 os.system(f"mkdir -p {args.CFE_model_path}")
 if args.device != "cpu":
@@ -97,6 +106,17 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if device != "cpu":
     torch.cuda.manual_seed(args.seed)
+
+def extract_epoch(path: str) -> int:
+    # Use split("/") to split the path by the forward slash '/'
+    parts = path.split("/")
+    # Get the last part of the path
+    last_part = parts[-1]
+    # Use split("epoch") to split the last part and get the second element of the resulting list
+    after_epoch = last_part.split("epoch")[-1]
+    # Use split(".") to split the string and get the first element (the number) of the resulting list
+    epoch_number = after_epoch.split(".")[0]
+    return int(epoch_number)
 
 def add_list_in_dict(key, dict, elem):
     if key not in dict:
@@ -123,9 +143,10 @@ def proximity_feature(feat_1, feat_2, type='cos'):
 
 def compute_loss(params):
     model, pred_model, z_mu, z_logvar, adj_permuted, features_permuted, adj_reconst, features_reconst, \
-    adj_input, features_input, y_cf, z_u_mu, z_u_logvar, z_mu_cf, z_logvar_cf = params['model'], params['pred_model'], params['z_mu'], \
+    adj_input, features_input, y_cf, z_u_mu, z_u_logvar, z_mu_cf, z_logvar_cf, target_node = params['model'], params['pred_model'], params['z_mu'], \
         params['z_logvar'], params['adj_permuted'], params['features_permuted'], params['adj_reconst'], params['features_reconst'], \
-        params['adj_input'], params['features_input'], params['y_cf'], params['z_u_mu'], params['z_u_logvar'], params['z_mu_cf'], params['z_logvar_cf']
+        params['adj_input'], params['features_input'], params['y_cf'], params['z_u_mu'], params['z_u_logvar'], params['z_mu_cf'], \
+        params['z_logvar_cf'], params['target_node']
 
     # kl loss
     loss_kl = 0.5 * (((z_u_logvar - z_logvar) + ((z_logvar.exp() + (z_mu - z_u_mu).pow(2)) / z_u_logvar.exp())) - 1)
@@ -145,7 +166,7 @@ def compute_loss(params):
     # y_pred = pred_model(features_reconst, adj_reconst)['y_pred']  # n x num_class
     y_pred = []
     for i in range(len(adj_reconst)):
-        pyg_graph = get_pyg_graph(features_reconst[i], adj_reconst[i])
+        pyg_graph = get_pyg_graph(features_reconst[i], adj_reconst[i], target_node=target_node[i] if target_node is not None else None)
         pred = pred_model(pyg_graph, pyg_graph.edge_weight)[-1]
         y_pred.append(pred)
     y_pred = torch.cat(y_pred, dim=0)
@@ -186,6 +207,7 @@ def train(params):
             u = data['u'].float().to(device)
             orin_index = data['index']
             y_cf = y_cf_all[orin_index]
+            target_node = data['target_node']
 
             optimizer.zero_grad()
 
@@ -196,7 +218,7 @@ def train(params):
             z_mu_cf, z_logvar_cf = model.get_represent(model_return['features_reconst'], u, model_return['adj_reconst'], y_cf)
 
             # compute loss
-            loss_params = {'model': model, 'pred_model': pred_model, 'adj_input': adj, 'features_input': features, 'y_cf': y_cf, 'z_mu_cf': z_mu_cf, 'z_logvar_cf':z_logvar_cf}
+            loss_params = {'model': model, 'pred_model': pred_model, 'adj_input': adj, 'features_input': features, 'target_node': target_node, 'y_cf': y_cf, 'z_mu_cf': z_mu_cf, 'z_logvar_cf':z_logvar_cf}
             loss_params.update(model_return)
 
             loss_results = compute_loss(loss_params)
@@ -219,8 +241,8 @@ def train(params):
         optimizer.step()
 
         # evaluate
-        # if epoch % 1 == 0:
-        if epoch % 100 == 0:
+        if epoch % 1 == 0:
+        # if epoch % 100 == 0:
             model.eval()
             eval_params_val = {'model': model, 'data_loader': val_loader, 'pred_model': pred_model, 'y_cf': y_cf_all, 'dataset': dataset, 'metrics': metrics}
             eval_params_tst = {'model': model, 'data_loader': test_loader, 'pred_model': pred_model, 'y_cf': y_cf_all, 'dataset': dataset, 'metrics': metrics}
@@ -240,7 +262,8 @@ def train(params):
 
             # save
             if save_model:
-                if epoch % 300 == 0 and epoch > 450:
+                if epoch % 1 == 0:
+                # if epoch % 300 == 0 and epoch > 450:
                     CFE_model_path = f"{args.CFE_model_path}/{variant}_exp{exp_i}_epoch{epoch}.pt"
                     torch.save(model.state_dict(), CFE_model_path)
                     print('saved CFE model in: ', CFE_model_path)
@@ -269,6 +292,7 @@ def test(params):
         labels = data['labels'].float().to(device)
         orin_index = data['index']
         y_cf = y_cf_all[orin_index]
+        target_node = data['target_node']
 
         model_return = model(features, u, adj, y_cf)
         adj_reconst, features_reconst = model_return['adj_reconst'], model_return['features_reconst']
@@ -282,12 +306,12 @@ def test(params):
         y_pred = []
         assert len(adj) == len(adj_reconst_binary), "Different adjacencies."
         for i in range(len(adj_reconst_binary)):
-            pyg_graph = get_pyg_graph(features[i], adj[i])
+            pyg_graph = get_pyg_graph(features[i], adj[i], target_node=target_node[i] if target_node is not None else None)
             pred = pred_model(pyg_graph, pyg_graph.edge_weight)[-1]
             y_pred.append(pred)
 
             is_undirected = pyg_graph.is_undirected()
-            pyg_graph_cf = get_pyg_graph(features_reconst[i], adj_reconst_binary[i], is_undirected=is_undirected)
+            pyg_graph_cf = get_pyg_graph(features_reconst[i], adj_reconst_binary[i], is_undirected=is_undirected, target_node=target_node[i] if target_node is not None else None)
             pred_cf = pred_model(pyg_graph_cf, pyg_graph_cf.edge_weight)[-1]
             y_cf_pred.append(pred_cf)
 
@@ -304,7 +328,7 @@ def test(params):
         z_mu_cf, z_logvar_cf = None, None
 
         # compute loss
-        loss_params = {'model': model, 'pred_model': pred_model, 'adj_input': adj, 'features_input': features, 'y_cf': y_cf, 'z_mu_cf': z_mu_cf, 'z_logvar_cf':z_logvar_cf}
+        loss_params = {'model': model, 'pred_model': pred_model, 'adj_input': adj, 'features_input': features, 'target_node': target_node, 'y_cf': y_cf, 'z_mu_cf': z_mu_cf, 'z_logvar_cf':z_logvar_cf}
         loss_params.update(model_return)
 
         loss_results = compute_loss(loss_params)
@@ -606,7 +630,7 @@ def run_clear(args, exp_type):
     # load data
     # data_load = dpp.load_data(data_path_root, args.dataset)
     data_load = get_pyg_dataset_and_convert_to_clear(dataset_name=args.dataset, noise=args.noise)
-    idx_train_list, idx_val_list, idx_test_list = data_load['idx_train_list'], data_load['idx_val_list'], data_load['idx_test_list']
+    idx_train_list, idx_val_list, idx_test_list = data_load['idx_train_list'], data_load['idx_val_list'], data_load['idx_test_list'] #todo Set train and test indices.
     data = data_load['data']
     x_dim = data[0]["features"].shape[1]
     u_unique = np.unique(np.array(data.u_all))
@@ -619,14 +643,22 @@ def run_clear(args, exp_type):
     print('n ', n, 'x_dim: ', x_dim, ' max_num_nodes: ', max_num_nodes, ' num_class: ', num_class)
 
     results_all_exp = {}
-    init_params = {'vae_type': 'graphVAE', 'x_dim': x_dim, 'u_dim': u_dim,
-                   'max_num_nodes': max_num_nodes}  # parameters for initialize GraphCFE model
+    init_params = {'vae_type': 'graphVAE', 'x_dim': x_dim, 'u_dim': u_dim, 'max_num_nodes': max_num_nodes}  # parameters for initialize GraphCFE model
 
     # load model
     # pred_model = models.Graph_pred_model(x_dim, 32, num_class, max_num_nodes, args.dataset).to(device)
     # pred_model.load_state_dict(torch.load(model_path + f'prediction/weights_graphPred__{args.dataset}' + '.pt'))
-    pred_model = GNN(num_features=x_dim, num_classes=2, num_layers=args.num_layers,
-                    dim=args.dim, dropout=args.dropout, layer=args.layer, pool=args.pool)
+    if args.dataset in ['syn1', 'syn4', 'syn5']:
+        pred_model = GnnSynthetic(
+            nfeat=x_dim,
+            nhid=20,
+            nout=20,
+            nclass=4 if args.dataset == 'syn1' else 2,
+            dropout=0.0
+        )
+    else:
+        pred_model = GNN(num_features=x_dim, num_classes=2, num_layers=args.num_layers,
+                         dim=args.dim, dropout=args.dropout, layer=args.layer, pool=args.pool)
     pred_model.load_state_dict(torch.load(args.weights, map_location=device))
     pred_model = pred_model.to(device)
     pred_model.eval()
@@ -676,10 +708,13 @@ def run_clear(args, exp_type):
             # CFE_model_path = model_path + f'weights_graphCFE_{variant}_{args.dataset}_exp' + str(exp_i) +'_epoch'+args.epochs + '.pt'
             try:
                 best_path = ''
+                highest_epoch = 0
                 #pick path of file with max epochs(ideal is 1200)
                 for path in glob(f'{args.CFE_model_path}/*'):
-                    if(len(path) > len(best_path)):
+                    epoch = extract_epoch(path)
+                    if(epoch > highest_epoch):
                         best_path = path
+                        highest_epoch = epoch
                 CFE_model_path = best_path #glob(f'{args.CFE_model_path}/*')[-1]
             except IndexError:
                 raise FileNotFoundError
@@ -811,12 +846,12 @@ def run_baseline(args, type='random'):
     print('time', f": mean: {np.mean(time_spent_all):.4f} | std: {np.std(time_spent_all):.4f}")
     return
 
-def get_pyg_graph(clear_features: np.ndarray, clear_adj: np.ndarray, is_undirected: bool = False) -> Data:
+def get_pyg_graph(clear_features: np.ndarray, clear_adj: np.ndarray, is_undirected: bool = False, target_node: int = None) -> Data:
     x = clear_features
     edge_index, edge_weight = dense_to_sparse(clear_adj)
     if is_undirected:
         edge_index, edge_weight = to_undirected(edge_index=edge_index, edge_attr=edge_weight)
-    return Data(x=x, edge_index=edge_index, edge_weight=edge_weight)
+    return Data(x=x, edge_index=edge_index, edge_weight=edge_weight, target_node=target_node)
 
 def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) -> typing.Dict:
     if noise is None:
@@ -849,6 +884,14 @@ def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) ->
     U_NUM = 10
     u_all = [np.random.choice(U_NUM, size=1).astype(float) for __ in range(len(adj_all))]
 
+    # target nodes. These are utilized when we are using a node classification
+    # dataset as a graph classification dataset.
+    target_nodes = None
+    if dataset_name in ['syn1', 'syn4', 'syn5']:
+        target_nodes = []
+        for data in dataset:
+            target_nodes.append(data.target_node)
+
     # GraphData
     dataset_clear = GraphData(
         adj_all=adj_all,
@@ -858,6 +901,7 @@ def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) ->
         max_num_nodes=max_num_nodes,
         padded=PADDED,
         index=None,
+        target_nodes=target_nodes,
     )
     data_load = {
         "data": dataset_clear,
