@@ -68,8 +68,6 @@ class Syn1(Dataset):
         edge_attr = None
         edge_features = None
         y = torch.LongTensor(data_dict['labels'][0])
-        self.train_idx = data_dict['train_idx']
-        self.test_idx = data_dict['test_idx']
 
         for node_idx in range(node_features.size(0)):
             subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
@@ -154,8 +152,6 @@ class Syn4(Dataset):
         edge_attr = None
         edge_features = None
         y = torch.LongTensor(data_dict['labels'][0])
-        self.train_idx = data_dict['train_idx']
-        self.test_idx = data_dict['test_idx']
 
         for node_idx in range(node_features.size(0)):
             subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
@@ -240,8 +236,6 @@ class Syn5(Dataset):
         edge_attr = None
         edge_features = None
         y = torch.LongTensor(data_dict['labels'][0])
-        self.train_idx = data_dict['train_idx']
-        self.test_idx = data_dict['test_idx']
 
         for node_idx in range(node_features.size(0)):
             subset, subgraph_edge_index, mapping, edge_mask = k_hop_subgraph(
