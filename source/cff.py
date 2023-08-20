@@ -171,7 +171,7 @@ parser.add_argument('--device', type=str, default="0")
 parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'])
-parser.add_argument('--robustness', action='store_true')
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 
 args = parser.parse_args()
 
@@ -202,7 +202,7 @@ model.eval()
 
 node_embeddings, graph_embeddings, outs = trainer.load_gnn_outputs(args.gnn_run)
 
-if not args.robustness:
+if args.robustness == 'na':
     explainer = GraphExplainerEdge(
         base_model=model,
         G_dataset=dataloader,
@@ -213,11 +213,30 @@ if not args.robustness:
     if args.alp != 0: # Save the following only in the factual setting.
         torch.save(exps, explanations_path)
         torch.save(cfs, counterfactual_path)
-else:
+elif args.robustness == 'topology_random':
     for noise in [1, 2, 3, 4, 5]:
         explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
         counterfactual_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
         noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+        splits, indices = data_utils.split_data(noisy_dataset)
+        if args.alp == 0:
+            noisy_dataset = noisy_dataset[indices[2]] # test graphs only as this is not an inductive explainer.
+        dataloader = DataLoader(noisy_dataset, batch_size=1, shuffle=False)
+        explainer = GraphExplainerEdge(
+            base_model=model,
+            G_dataset=dataloader,
+            args=args,
+            device=device,
+        )
+        exps, cfs, sufficiency, necessity, average_size = explainer.explain_dataset()
+        if args.alp != 0: # Save the following only in the factual setting.
+            torch.save(exps, explanations_path)
+            torch.save(cfs, counterfactual_path)
+elif args.robustness == 'feature':
+    for noise in [10, 20, 30, 40, 50]:
+        explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_feature_noise_{noise}.pt')
+        counterfactual_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_feature_noise_{noise}.pt')
+        noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_feature_dataset_name(dataset_name=args.dataset, noise=noise))
         splits, indices = data_utils.split_data(noisy_dataset)
         if args.alp == 0:
             noisy_dataset = noisy_dataset[indices[2]] # test graphs only as this is not an inductive explainer.
