@@ -442,6 +442,18 @@ def split_data(data, train_ratio=0.8, val_ratio=0.1):
     return splits, [split.indices for split in splits]
 
 
+def split_data_equally(data, num_splits=5):
+    gen = torch.Generator().manual_seed(0)
+    number = len(data)
+    base_quotient = number // num_splits
+    remainder = number % num_splits
+    numbers = [base_quotient for _ in range(num_splits)]
+    for i in range(remainder):
+        numbers[i] += 1
+    splits = random_split(data, lengths=numbers, generator=gen)
+    return splits, [split.indices for split in splits]
+
+
 def sample_negative_edges(graph, num_samples):
     random.seed(0)
     new_edges = negative_sampling(graph.edge_index, num_neg_samples=num_samples * 2, num_nodes=graph.num_nodes, force_undirected=True)
