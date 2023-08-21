@@ -157,7 +157,7 @@ class GraphExplainerEdge(torch.nn.Module):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                     help="Dataset name")
 parser.add_argument('--lam', type=int, default=20,
                     help='Lambda hyperparameter. Need to be tuned to make 1-norm loss and contrastive loss into the same scale. Default is 1000. ')

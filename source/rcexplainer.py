@@ -144,7 +144,7 @@ parser.add_argument('--beta_', default=0.0000001, type=float, help="The hyperpar
 
 parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                     help="Dataset name")
 parser.add_argument('--device', type=int, default=0)
 parser.add_argument('--gnn_run', type=int, default=1)

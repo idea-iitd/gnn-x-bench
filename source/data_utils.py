@@ -13,6 +13,7 @@ from torch.utils.data import random_split
 import torch
 import torch.nn.functional as F
 
+from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.utils import negative_sampling, sort_edge_index, to_dense_adj
 import random
 
@@ -524,6 +525,8 @@ def load_dataset(dataset_name, root='data/'):
         data = TUDataset(root=root, name='DD', use_node_attr=True)
     elif dataset_name == 'REDDIT-B':
         data = TUDataset(root=root, name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+    elif dataset_name == 'ogbg_molhiv':
+        data = PygGraphPropPredDataset(root=root, name='ogbg-molhiv')
     else:
         raise NotImplementedError(f'Dataset: {dataset_name} is not implemented!')
 

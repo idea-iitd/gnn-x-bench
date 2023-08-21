@@ -10,3 +10,7 @@ source/methods/clear/src/data/
 
 basegnn/
 !basegnn/*/best_model_run_1.pt
+
+data/ogbg_molhiv/mapping/
+data/ogbg_molhiv/split/
+data/ogbg_molhiv/RELEASE_v1.txt

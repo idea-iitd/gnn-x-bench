@@ -62,7 +62,7 @@ parser.add_argument('--dim_h', type=int, default=16, metavar='N', help='dimensio
 
 parser.add_argument('-d', '--dataset', required=True, help='dataset to use',
                     choices=["Mutagenicity", "Mutag", "Proteins", "AIDS",\
-                             "NCI1", "DD", "IMDB-B", "Graph-SST2", "REDDIT-B"])
+                             "NCI1", "DD", "IMDB-B", "Graph-SST2", "REDDIT-B", "ogbg_molhiv"])
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='learning rate for optimizer')
 parser.add_argument('--weight_decay', type=float, default=1e-5,
