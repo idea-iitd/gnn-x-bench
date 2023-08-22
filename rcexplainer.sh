@@ -3,7 +3,7 @@ device=2
 cpus=0-15
 
 # collect explanations from datasets
- python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset Mutagenicity taskset -c $cpus
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset Mutagenicity
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset Proteins
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset IMDB-B
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset AIDS
