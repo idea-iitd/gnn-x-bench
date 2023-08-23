@@ -31,7 +31,7 @@ colors = {
     "gem": "orange",
 }
 
-folded = False
+folded = True
 
 if not folded:
     # read results

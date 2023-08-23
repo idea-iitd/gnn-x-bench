@@ -120,8 +120,8 @@ def similarity_of_explanations(original_matrix_elements, noisy_matrix_elements, 
         if metric == 'jaccard':
             # checks top_k edges that is available in original matrix and also in noisy matrix
             k = min(top_k, original_matrix_elements.shape[0])
-            idx1 = torch.topk(original_matrix_elements, k)[1]
-            idx2 = torch.topk(noisy_matrix_elements, k)[1]
+            idx1 = torch.topk(original_matrix_elements, min(len(noisy_matrix_elements), k))[1]
+            idx2 = torch.topk(noisy_matrix_elements, min(len(noisy_matrix_elements), k))[1]
             mask = torch.logical_not(torch.isin(idx1, idx2))
             diff = torch.masked_select(idx1, mask)
             score = 1 - len(diff) / k

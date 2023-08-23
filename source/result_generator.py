@@ -20,7 +20,8 @@ def parse_args():
     parser.add_argument('--explainer_name', type=str, choices=['pgexplainer', 'tagexplainer', 'tagexplainer_1', 'tagexplainer_2',
                                                                'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphx'],
                         help='Name of explainer to use.')
-    parser.add_argument('--explanation_metric', type=str, choices=['faithfulness', 'faithfulness_with_removal', 'faithfulness_on_test', 'stability_noise', 'stability_seed', 'stability_base'],
+    parser.add_argument('--explanation_metric', type=str, choices=['faithfulness', 'faithfulness_with_removal', 'faithfulness_on_test', 'stability_noise', 'stability_seed',
+                                                                   'stability_base', 'stability_noise_feature', 'stability_topology_adversarial'],
                         help='Explanation metric to use.')
     parser.add_argument('--folded', action='store_true', help='Whether to use folded results.')
     return parser.parse_args()
@@ -125,6 +126,36 @@ if __name__ == '__main__':
                 torch.save(robustness_scores_dict, result_folder + f'stability_noise_{args.gnn_type}_run_{args.explainer_run}_fold_{fold}.pt')
             else:
                 torch.save(robustness_scores_dict, result_folder + f'stability_noise_{args.gnn_type}_run_{args.explainer_run}.pt')
+        elif args.explanation_metric == 'stability_noise_feature':
+            ks = [10, 20, 30, 40, 50]
+            metric_names = ['jaccard']
+            robustness_scores_dict = {metric: [] for metric in metric_names}
+            top_k = 10
+            for k in ks:
+                explanations_noise = data_utils.load_explanations_noisy_feature(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=k)
+                explanations_noise_fold = [explanations_noise[idx] for idx in indices]
+                robustness_scores = metrics.robustness(explanations_fold, explanations_noise_fold, top_k, metric_names)
+                for i in range(len(metric_names)):
+                    robustness_scores_dict[metric_names[i]].append(robustness_scores[i])
+            if args.folded:
+                torch.save(robustness_scores_dict, result_folder + f'stability_noise_feature_{args.gnn_type}_run_{args.explainer_run}_fold_{fold}.pt')
+            else:
+                torch.save(robustness_scores_dict, result_folder + f'stability_noise_feature_{args.gnn_type}_run_{args.explainer_run}.pt')
+        elif args.explanation_metric == 'stability_topology_adversarial':
+            ks = [1, 2, 3, 4, 5]
+            metric_names = ['jaccard']
+            robustness_scores_dict = {metric: [] for metric in metric_names}
+            top_k = 10
+            for k in ks:
+                explanations_noise = data_utils.load_explanations_topology_adversarial(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=k)
+                explanations_noise_fold = [explanations_noise[idx] for idx in indices]
+                robustness_scores = metrics.robustness(explanations_fold, explanations_noise_fold, top_k, metric_names)
+                for i in range(len(metric_names)):
+                    robustness_scores_dict[metric_names[i]].append(robustness_scores[i])
+            if args.folded:
+                torch.save(robustness_scores_dict, result_folder + f'stability_topology_adversarial_{args.gnn_type}_run_{args.explainer_run}_fold_{fold}.pt')
+            else:
+                torch.save(robustness_scores_dict, result_folder + f'stability_topology_adversarial_{args.gnn_type}_run_{args.explainer_run}.pt')
         elif args.explanation_metric == 'stability_seed':
             seeds = [1, 2, 3]
             metric_names = ['jaccard']

@@ -556,6 +556,14 @@ def load_explanations_noisy(dataset_name, explainer_name, gnn_type, device, run,
     path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_noise_{k}.pt'
     return torch.load(path, map_location=device)
 
+def load_explanations_noisy_feature(dataset_name, explainer_name, gnn_type, device, run, k):
+    path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_feature_noise_{k}.pt'
+    return torch.load(path, map_location=device)
+
+def load_explanations_topology_adversarial(dataset_name, explainer_name, gnn_type, device, run, k):
+    path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_topology_adversarial_{k}.pt'
+    return torch.load(path, map_location=device)
+
 
 def select_top_k_explanations(dataset, top_k):
     top_k_dataset = []
