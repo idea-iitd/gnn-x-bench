@@ -14,7 +14,7 @@ parser.add_argument('--batch_size', type=int, default=128)
 # 64 is used for social datasets (IMDB) and 16 or 32 for bio datasest (MUTAG, PTC, PROTEINS).
 parser.add_argument('--hidden_units', type=int, default=64)
 parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                     help="Dataset name")
 parser.add_argument('--device', type=int, default=0)
 parser.add_argument('--gnn_run', type=int, default=1)
@@ -49,7 +49,7 @@ if args.dataset in ['IMDB-B', 'REDDIT-B']:
 else:
     args.hidden_units = 32
 
-if args.dataset in ['Graph-SST2']:
+if args.dataset in ['Graph-SST2', 'ogbg_molhiv']:
     lr = 0.001 * 0.05  # smaller lr for large dataset
 else:
     lr = 0.001

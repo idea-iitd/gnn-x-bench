@@ -14,6 +14,7 @@ for stage_no in $stages; do
   taskset -c $cpus python source/tagexplainer.py --dataset Graph-SST2 --gnn_type $gnn_type --device $device --stage $stage_no
   taskset -c $cpus python source/tagexplainer.py --dataset REDDIT-B --gnn_type $gnn_type --device cpu --stage $stage_no
   taskset -c $cpus python source/tagexplainer.py --dataset DD --gnn_type $gnn_type --device cpu --stage $stage_no
+  taskset -c $cpus python source/tagexplainer.py --dataset ogbg_molhiv --gnn_type $gnn_type --device cpu --stage $stage_no
 done
 
 
@@ -70,6 +71,7 @@ done
 #    fi
 #    if [ "$metric" = "faithfulness" ]; then
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset Graph-SST2 --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
+#      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset ogbg_molhiv --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset REDDIT-B --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset DD --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #    fi
