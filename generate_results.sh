@@ -18,6 +18,7 @@ for metric in $metrics; do
     fi
     if [ "$metric" = "faithfulness" ]; then
       taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset Graph-SST2 --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
+      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset ogbg_molhiv --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded &
       taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset REDDIT-B --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
       taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset DD --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
     fi
@@ -52,6 +53,7 @@ for metric in $metrics; do
     taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset Mutag --gnn_type "$gnn_type" --device $device --explanation_metric "$metric" --folded
     taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset NCI1 --gnn_type "$gnn_type" --device $device --explanation_metric "$metric" --folded
     taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset Graph-SST2 --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
+    taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset ogbg_molhiv --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded &
     taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset DD --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
     taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset REDDIT-B --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric" --folded
   done
