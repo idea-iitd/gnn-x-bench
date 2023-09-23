@@ -293,6 +293,7 @@ def test(params):
         orin_index = data['index']
         y_cf = y_cf_all[orin_index]
         target_node = data['target_node']
+        node_labels = data['node_labels']
 
         model_return = model(features, u, adj, y_cf)
         adj_reconst, features_reconst = model_return['adj_reconst'], model_return['features_reconst']
@@ -306,12 +307,23 @@ def test(params):
         y_pred = []
         assert len(adj) == len(adj_reconst_binary), "Different adjacencies."
         for i in range(len(adj_reconst_binary)):
-            pyg_graph = get_pyg_graph(features[i], adj[i], target_node=target_node[i] if target_node is not None else None)
+            pyg_graph = get_pyg_graph(
+                features[i],
+                adj[i],
+                target_node=target_node[i] if target_node is not None else None,
+                node_labels=node_labels[i] if node_labels is not None else None,
+            )
             pred = pred_model(pyg_graph, pyg_graph.edge_weight)[-1]
             y_pred.append(pred)
 
             is_undirected = pyg_graph.is_undirected()
-            pyg_graph_cf = get_pyg_graph(features_reconst[i], adj_reconst_binary[i], is_undirected=is_undirected, target_node=target_node[i] if target_node is not None else None)
+            pyg_graph_cf = get_pyg_graph(
+                features_reconst[i],
+                adj_reconst_binary[i],
+                is_undirected=is_undirected,
+                target_node=target_node[i] if target_node is not None else None,
+                node_labels=node_labels[i] if node_labels is not None else None,
+            )
             pred_cf = pred_model(pyg_graph_cf, pyg_graph_cf.edge_weight)[-1]
             y_cf_pred.append(pred_cf)
 
@@ -846,12 +858,18 @@ def run_baseline(args, type='random'):
     print('time', f": mean: {np.mean(time_spent_all):.4f} | std: {np.std(time_spent_all):.4f}")
     return
 
-def get_pyg_graph(clear_features: np.ndarray, clear_adj: np.ndarray, is_undirected: bool = False, target_node: int = None) -> Data:
+def get_pyg_graph(
+        clear_features: np.ndarray,
+        clear_adj: np.ndarray,
+        is_undirected: bool = False,
+        target_node: int = None,
+        node_labels: typing.List = None
+) -> Data:
     x = clear_features
     edge_index, edge_weight = dense_to_sparse(clear_adj)
     if is_undirected:
         edge_index, edge_weight = to_undirected(edge_index=edge_index, edge_attr=edge_weight)
-    return Data(x=x, edge_index=edge_index, edge_weight=edge_weight, target_node=target_node)
+    return Data(x=x, edge_index=edge_index, edge_weight=edge_weight, target_node=target_node, node_labels=node_labels)
 
 def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) -> typing.Dict:
     if noise is None:
@@ -897,13 +915,19 @@ def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) ->
     U_NUM = 10
     u_all = [np.random.choice(U_NUM, size=1).astype(float) for __ in range(len(adj_all))]
 
-    # target nodes. These are utilized when we are using a node classification
+    # These are utilized when we are using a node classification
     # dataset as a graph classification dataset.
     target_nodes = None
+    # Needed for computing accuracy in cf_metrics.
+    node_labels = None
     if dataset_name in ['syn1', 'syn4', 'syn5']:
         target_nodes = []
+        node_labels = []
         for data in dataset:
             target_nodes.append(data.target_node)
+            # pad node_labels to constant size.
+            padded_node_labels = torch.Tensor([data.node_labels[i].item() if i < len(data.node_labels) else 0 for i in range(max_num_nodes)])
+            node_labels.append(padded_node_labels)
 
     # GraphData
     dataset_clear = GraphData(
@@ -915,6 +939,7 @@ def get_pyg_dataset_and_convert_to_clear(dataset_name: str, noise:int = None) ->
         padded=PADDED,
         index=None,
         target_nodes=target_nodes,
+        node_labels=node_labels
     )
     data_load = {
         "data": dataset_clear,

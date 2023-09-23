@@ -76,6 +76,7 @@ def select_dataloader(dataset, idx_select, batch_size=500, num_workers=0):
         padded=dataset.padded,
         index=get_items_from_list(dataset.index,idx_select),
         target_nodes=get_items_from_list(dataset.target_nodes, idx_select) if dataset.target_nodes is not None else None,
+        node_labels=get_items_from_list(dataset.node_labels, idx_select) if dataset.node_labels is not None else None,
     )
     data_loader_select = torch.utils.data.DataLoader(
         dataset_select,
