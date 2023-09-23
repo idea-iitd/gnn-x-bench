@@ -97,6 +97,7 @@ class GnnSynthetic(torch.nn.Module):
         self.gc3 = GCNConv(nhid, nout)
         self.fc = torch.nn.Linear(nhid + nhid + nout, nclass)
         self.dropout = dropout
+        self.dim = 20 # for RCExplainer
 
     def forward(self, data, edge_weight=None):
         x = data.x

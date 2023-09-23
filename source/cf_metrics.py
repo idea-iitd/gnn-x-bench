@@ -58,7 +58,9 @@ def remove_top_k(model, explanation, k=1):
         edge_weight=directed_edge_weight.clone(),
         edge_mask = edge_mask,
         edge_attr=directed_edge_attr.clone() if directed_edge_attr is not None else None,
-        # target_node = explanation.target_node     
+        # The following two lines are for node classification datasets.
+        target_node = explanation.target_node,
+        node_labels = explanation.node_labels,
     )
     
     # make graph undirected

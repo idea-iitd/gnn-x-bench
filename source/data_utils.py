@@ -78,6 +78,7 @@ class Syn1(Dataset):
             )
             subgraph_node_features = node_features[subset, :]
             subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+            subgraph_node_labels = y[subset]
 
             data = Data(
                 x=subgraph_node_features,
@@ -88,6 +89,7 @@ class Syn1(Dataset):
             )
             # The target node's id will change since we are relabelling the nodes.
             data.target_node = mapping.item()
+            data.node_labels = subgraph_node_labels
             torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
 
     def len(self):
@@ -162,6 +164,7 @@ class Syn4(Dataset):
             )
             subgraph_node_features = node_features[subset, :]
             subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+            subgraph_node_labels = y[subset]
 
             data = Data(
                 x=subgraph_node_features,
@@ -172,6 +175,7 @@ class Syn4(Dataset):
             )
             # The target node's id will change since we are relabelling the nodes.
             data.target_node = mapping.item()
+            data.node_labels = subgraph_node_labels
             torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
 
     def len(self):
@@ -246,6 +250,7 @@ class Syn5(Dataset):
             )
             subgraph_node_features = node_features[subset, :]
             subgraph_label = y[[node_idx]] # This shape is important for dataset.y to work.
+            subgraph_node_labels = y[subset]
 
             data = Data(
                 x=subgraph_node_features,
@@ -256,6 +261,7 @@ class Syn5(Dataset):
             )
             # The target node's id will change since we are relabelling the nodes.
             data.target_node = mapping.item()
+            data.node_labels = subgraph_node_labels
             torch.save(data, os.path.join(self.processed_dir, f'data_{node_idx}.pt'))
 
     def len(self):

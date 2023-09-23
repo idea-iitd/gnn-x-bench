@@ -158,7 +158,11 @@ class RuleMinerLargeCandiPool():
             # print("neg: ", vec)
             initial_list.append(neg_index)
             ###
+            count = -1
             while True:
+                count += 1
+                if count == 1000:
+                    break
                 # Adjusted binary search
                 boundary_pt = 0.9 * pos + 0.1 * neg
 
@@ -349,7 +353,7 @@ def build_optimizer(args, params, weight_decay=0.0):
     return scheduler, optimizer
 
 
-def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, args, train_indices, val_indices, device):
+def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, args, train_indices, val_indices, device, target_nodes):
     params_optim = []
     for name, param in explainer.named_parameters():
         params_optim.append(param)
@@ -376,6 +380,7 @@ def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num
             sub_nodes = num_nodes[graph_idx]
             sub_feat = feats[graph_idx]
             sub_label = labels[graph_idx]
+            sub_target_node = target_nodes[graph_idx].item()
 
             sub_adj = np.expand_dims(sub_adj, axis=0)
             sub_feat = np.expand_dims(sub_feat, axis=0)
@@ -407,7 +412,9 @@ def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num
             t1 = 4.99
 
             tmp = float(t0 * np.power(t1 / t0, epoch / args.epochs))
-            pred, masked_adj, graph_embedding, inv_embedding, inv_pred = explainer((x[0], emb[0], adj[0], tmp, label, sub_nodes), device=device, training=True, gnn_model=model)
+            # Supply node labels and target nodes.
+            pred, masked_adj, graph_embedding, inv_embedding, inv_pred = explainer((x[0], emb[0], adj[0], tmp, label, sub_nodes, sub_target_node), device=device, training=True, gnn_model=model)
+            # Supply node labels and target nodes.
             loss, _ = explainer.loss(graph_embedding=graph_embedding, boundary_list=boundary_list, gt_embedding=gt_embedding, inv_embedding=inv_embedding)
 
             loss_ep += loss
@@ -434,7 +441,7 @@ def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num
             scheduler.step()
 
         # validation
-        val_loss, _ = evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, val_indices, device)
+        val_loss, _ = evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, val_indices, device, target_nodes)
         val_loss = val_loss.item()
 
         if val_loss < best_val_loss:
@@ -451,7 +458,7 @@ def train_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num
 
 
 @torch.no_grad()
-def evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, graph_indices, device):
+def evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds, num_nodes, embs, node_embs, graph_indices, device, target_nodes):
     explainer.eval()
     masked_adjs = []
     total_loss = 0
@@ -462,6 +469,7 @@ def evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds,
         sub_nodes = num_nodes[graph_idx]
         sub_feat = feats[graph_idx]
         sub_label = labels[graph_idx]
+        sub_target_node = target_nodes[graph_idx]
 
         sub_adj = np.expand_dims(sub_adj, axis=0)
         sub_feat = np.expand_dims(sub_feat, axis=0)
@@ -494,7 +502,7 @@ def evaluator_explainer(explainer, model, rule_dict, adjs, feats, labels, preds,
         t1 = 4.99
 
         tmp = float(t0 * np.power(t1 / t0, 1.0))
-        pred, masked_adj, graph_embedding, inv_embedding, inv_pred = explainer((x[0], emb[0], adj[0], tmp, label, sub_nodes), device=device, training=False, gnn_model=model)
+        pred, masked_adj, graph_embedding, inv_embedding, inv_pred = explainer((x[0], emb[0], adj[0], tmp, label, sub_nodes, sub_target_node), device=device, training=False, gnn_model=model)
         loss, _ = explainer.loss(graph_embedding=graph_embedding, boundary_list=boundary_list, gt_embedding=gt_embedding, inv_embedding=inv_embedding)
         total_loss += loss
 
@@ -566,7 +574,7 @@ class ExplainModule(nn.Module):
         return gate_inputs
 
     def forward(self, inputs, device=None, training=None, gnn_model=None):
-        x, embed, adj, tmp, label, sub_nodes = inputs
+        x, embed, adj, tmp, label, sub_nodes, sub_target_node = inputs
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x)
         x = x.to(self.device)
@@ -631,17 +639,24 @@ class ExplainModule(nn.Module):
         adj_i = adj[0][:sub_num_nodes_l[0]][:, :sub_num_nodes_l[0]]
         x_i = x[0][:sub_num_nodes_l[0], :]
         edge_index, edge_weight = dense_to_sparse(adj_i)
-        d = Data(edge_index=edge_index, x=x_i).to(device)  #
+        # Supply node labels and target node.
+        d = Data(edge_index=edge_index, x=x_i, target_node=sub_target_node).to(device)  #
         loader = DataLoader([d], batch_size=1)
         n_embed, g_embed, res = gnn_model(next(iter(loader)), edge_weight=edge_weight.to(device))
+        # hardcoded for synthetic datasets.
+        n_embed = n_embed[:, -20:]
+        g_embed = g_embed[:, -20:]
 
         inv_adj = torch.unsqueeze(self.inverse_masked_adj, 0).to(torch.float32)
         adj_i = inv_adj[0][:sub_num_nodes_l[0]][:, :sub_num_nodes_l[0]]
         x_i = x[0][:sub_num_nodes_l[0], :]
         edge_index, edge_weight = dense_to_sparse(adj_i)
-        d = Data(edge_index=edge_index, x=x_i).to(device)
+        d = Data(edge_index=edge_index, x=x_i, target_node=sub_target_node).to(device)
         loader = DataLoader([d], batch_size=1)
         n_inv_embed, inv_embed, inv_res = gnn_model(next(iter(loader)), edge_weight=edge_weight.to(device))
+        # hardcoded for synthetic datasets.
+        n_inv_embed = n_inv_embed[:, -20:]
+        inv_embed = inv_embed[:, -20:]
 
         return res, masked_adj, g_embed, inv_embed, inv_res
 

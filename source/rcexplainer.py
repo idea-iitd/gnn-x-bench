@@ -1,3 +1,4 @@
+from time import perf_counter
 import torch
 import numpy as np
 import random
@@ -23,6 +24,7 @@ def get_rce_format(data, node_embeddings):
     feat = []
     adj = []
     node_embs_pads = []
+    target_nodes = []
 
     for i, graph in enumerate(data):
         m = torch.nn.ZeroPad2d((0, 0, 0, max_num_nodes - graph.num_nodes))
@@ -32,14 +34,16 @@ def get_rce_format(data, node_embeddings):
         else:
             adj.append(torch.zeros(max_num_nodes, max_num_nodes))
         node_embs_pads.append(m(node_embeddings[i]))
+        target_nodes.append(graph.target_node)
 
     adj = torch.stack(adj)
     feat = torch.stack(feat)
     label = torch.LongTensor(label)
     num_nodes = torch.LongTensor(num_nodes)
     node_embs_pads = torch.stack(node_embs_pads)
+    target_nodes = torch.LongTensor(target_nodes)
 
-    return adj, feat, label, num_nodes, node_embs_pads
+    return adj, feat, label, num_nodes, node_embs_pads, target_nodes
 
 
 def extract_rules(model, train_data, preds, embs, device, pool_size=50):
@@ -138,7 +142,7 @@ parser.add_argument('--opt_scheduler', default='none')
 parser.add_argument('--use_tuned_parameters', action='store_true')
 
 # TODO: make args.lambda_ 0.0 for counterfactuals
-parser.add_argument('--lambda_', default=1.0, type=float, help="The hyperparameter of L_same, (1 - lambda) will be for L_opp")
+parser.add_argument('--lambda_', default=1.0, type=float, help="The hyperparameter of L_same, (1 - lambda) will be for L_opp. Supply 0 for counterfactual setting.")
 parser.add_argument('--mu_', default=0.0, type=float, help="The hyperparameter of L_entropy, makes the weights more close to 0 or 1")
 parser.add_argument('--beta_', default=0.0000001, type=float, help="The hyperparameter of L_sparsity, makes the explanations more sparse")
 
@@ -195,6 +199,7 @@ args.method = 'classification'
 
 trainer = GNNTrainer(dataset_name=args.dataset, gnn_type=args.gnn_type, task='basegnn', device=args.device)
 model = trainer.load(args.gnn_run)
+
 for param in model.parameters():
     param.requires_grad = False
 model.eval()
@@ -216,6 +221,11 @@ else:
     rule_dict = extract_rules(model, dataset, preds, graph_embeddings, device, pool_size=min([100, (preds == 1).sum().item(), (preds == 0).sum().item()]))
     np.save(rule_path, rule_dict)
 
+# Do this after rule mining.
+# elayers are hardcoded to take this shape. We need this for synthetic datasets.
+node_embeddings = [emb[:, -20:] for emb in node_embeddings]
+graph_embeddings = [emb[-20:] for emb in graph_embeddings]
+
 # setting seed again because of rule extraction
 torch.manual_seed(args.explainer_run)
 torch.cuda.manual_seed(args.explainer_run)
@@ -226,7 +236,8 @@ if args.dataset in ['Graph-SST2']:
     args.lr = args.lr * 0.05  # smaller lr for large dataset
     args.beta_ = args.beta_ * 10  # to make the explanations more sparse
 
-adj, feat, label, num_nodes, node_embs_pads = get_rce_format(dataset, node_embeddings)
+# Supply node labels and target nodes. (done)
+adj, feat, label, num_nodes, node_embs_pads, target_nodes = get_rce_format(dataset, node_embeddings)
 explainer = ExplainModule(
     num_nodes=adj.shape[1],
     emb_dims=model.dim * 2,  # gnn_model.num_layers * 2,
@@ -241,8 +252,13 @@ if args.dataset in ['NCI1']:
     args.beta_ = args.beta_ * 300
 
 if args.robustness == 'na':
-    explainer, last_epoch = train_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, args, train_indices, val_indices, device)
-    all_loss, all_explanations = evaluator_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, range(len(dataset)), device)
+    # Supply target nodes.
+    explainer, last_epoch = train_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, args, train_indices, val_indices, device, target_nodes)
+    start = perf_counter()
+    all_loss, all_explanations = evaluator_explainer(explainer, model, rule_dict, adj, feat, label, preds, num_nodes, graph_embeddings, node_embs_pads, range(len(dataset)), device, target_nodes)
+    end = perf_counter()
+    print(f"Inference time on full dataset: {end - start} seconds.")
+    print(f"Inference time on one graph: {(end - start) / len(dataset)} seconds.")
     explanation_graphs = []
     entered = 0
     if (args.lambda_ != 0.0):
@@ -253,17 +269,21 @@ if args.robustness == 'na':
         explanation_adj = torch.from_numpy(explanation[:graph.num_nodes][:, :graph.num_nodes])
         edge_index = graph.edge_index
         edge_weight = explanation_adj[[index[0] for index in graph.edge_index.T], [index[1] for index in graph.edge_index.T]]
+        node_labels = graph.node_labels
+        target_node = graph.target_node
 
         if (args.lambda_ != 0.0):
-            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone())
-            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone())
+            # Supply node labels and target nodes.
+            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone(), node_labels=node_labels, target_node=target_node)
+            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone(), node_labels=node_labels, target_node=target_node)
             explanation_graphs.append(d)
             counterfactual_graphs.append(c)
         else:
+            # Supply node labels and target nodes.
             # print('A')
             # added edge attributes to graphs, in order to take a forward pass with edge attributes and check if label changes for finding counterfactual explanation.
-            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
-            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None)
+            d = Data(edge_index=edge_index.clone(), edge_weight=edge_weight.clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None, node_labels=node_labels, target_node=target_node)
+            c = Data(edge_index=edge_index.clone(), edge_weight=(1 - edge_weight).clone(), x=graph.x.clone(), y=graph.y.clone(), edge_attr=graph.edge_attr.clone() if graph.edge_attr is not None else None, node_labels=node_labels, target_node=target_node)
             label = int(graph.y)
             pred = model(d.to(args.device), d.edge_weight.to(args.device))[-1][0]
             pred_cf = model(c.to(args.device), c.edge_weight.to(args.device))[-1][0]
