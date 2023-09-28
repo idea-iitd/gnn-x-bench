@@ -1,8 +1,8 @@
-*.pyc
-.idea
-
 .vscode/
 __pycache__/
+
+*.pyc
+.idea
 
 source/methods/clear/exp_results/
 source/methods/clear/models_save/

@@ -6,13 +6,14 @@ import json
 import pickle
 
 from torch_geometric.datasets import TUDataset
-from torch_geometric.utils import degree
+from torch_geometric.utils import degree, dense_to_sparse
 from torch_geometric.transforms import RemoveIsolatedNodes, ToUndirected
 
 from torch.utils.data import random_split
 import torch
 import torch.nn.functional as F
 
+from ogb.graphproppred import PygGraphPropPredDataset
 from torch_geometric.utils import negative_sampling, sort_edge_index, to_dense_adj
 import random
 
@@ -29,7 +30,7 @@ class MutagenicityNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(MutagenicityNoisy, self).__init__(root, transform, pre_transform)
@@ -107,7 +108,7 @@ class ProteinsNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(ProteinsNoisy, self).__init__(root, transform, pre_transform)
@@ -186,7 +187,7 @@ class IMDBNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        self.original_graphs = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
         self.graph_count = len(self.original_graphs)
 
         super(IMDBNoisy, self).__init__(root, transform, pre_transform)
@@ -265,7 +266,7 @@ class AIDSNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='AIDS', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(AIDSNoisy, self).__init__(root, transform, pre_transform)
@@ -493,37 +494,39 @@ class REDDITPreTransform(object):
         return data
 
 
-def load_dataset(dataset_name):
+def load_dataset(dataset_name, root='data/'):
     if dataset_name == 'Mutagenicity':
-        data = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        data = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
     elif "MutagenicityNoisy" in dataset_name:
         noise = int(dataset_name[17:])
-        data = MutagenicityNoisy(root='data/', noise=noise)
+        data = MutagenicityNoisy(root=root, noise=noise)
     elif dataset_name == 'Mutag':
-        data = TUDataset(root='data/', name='MUTAG', use_node_attr=True)
+        data = TUDataset(root=root, name='MUTAG', use_node_attr=True)
     elif dataset_name == 'Proteins':
-        data = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        data = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
     elif "ProteinsNoisy" in dataset_name:
         noise = int(dataset_name[13:])
-        data = ProteinsNoisy(root='data/', noise=noise)
+        data = ProteinsNoisy(root=root, noise=noise)
     elif dataset_name == 'IMDB-B':
-        data = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        data = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
     elif 'IMDBNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = IMDBNoisy(root='data/', noise=noise)
+        data = IMDBNoisy(root=root, noise=noise)
     elif dataset_name == 'AIDS':
-        data = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        data = TUDataset(root=root, name='AIDS', use_node_attr=True)
     elif 'AIDSNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = AIDSNoisy(root='data/', noise=noise)
+        data = AIDSNoisy(root=root, noise=noise)
     elif dataset_name == 'NCI1':
-        data = TUDataset(root='data/', name='NCI1', use_node_attr=True)
+        data = TUDataset(root=root, name='NCI1', use_node_attr=True)
     elif dataset_name == 'Graph-SST2':
-        data = SentiGraphDataset(root='data/', name='Graph-SST2')
+        data = SentiGraphDataset(root=root, name='Graph-SST2')
     elif dataset_name == 'DD':
-        data = TUDataset(root='data/', name='DD', use_node_attr=True)
+        data = TUDataset(root=root, name='DD', use_node_attr=True)
     elif dataset_name == 'REDDIT-B':
-        data = TUDataset(root='data/', name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+        data = TUDataset(root=root, name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+    elif dataset_name == 'ogbg_molhiv':
+        data = PygGraphPropPredDataset(root=root, name='ogbg-molhiv')
     else:
         raise NotImplementedError(f'Dataset: {dataset_name} is not implemented!')
 
