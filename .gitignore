@@ -12,5 +12,19 @@ basegnn/
 !basegnn/*/best_model_run_1.pt
 data/*/raw/
 data/*/processed/
+data/*/mapping/
+data/*/split/
 
 rcexplainer_rules/
+cf_results/
+
+data/**/result/
+
+best_model_base*explainer_run*
+plot/
+explanations*feature_noise*
+explanations*featnoise*
+explanations*topology_adversarial*
+
+data/Mutag/MUTAG/
+data/NCI1/NCI1.zip
