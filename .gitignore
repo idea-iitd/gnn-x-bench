@@ -10,3 +10,7 @@ source/methods/clear/src/data/
 
 basegnn/
 !basegnn/*/best_model_run_1.pt
+data/*/raw/
+data/*/processed/
+
+rcexplainer_rules/
