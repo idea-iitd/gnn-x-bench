@@ -1,7 +1,8 @@
-import os.path
+import os
+import torch
+import numpy as np
 
 import matplotlib.pyplot as plt
-import torch
 from matplotlib import rcParams
 
 rcParams['pdf.fonttype'] = 42
@@ -30,17 +31,48 @@ colors = {
     "gem": "orange",
 }
 
-# read results
-gnn_type = 'gcn'
-dataset_results = {dataset: {} for dataset in datasets}
-for dataset in datasets:
-    for method in methods:
-        path = f"data/{dataset}/{method}/faithfulness_{gnn_type}_run_1_test_only.pt"
-        if os.path.exists(path):
-            faithfulness_results = torch.load(path)
-            dataset_results[dataset][method] = faithfulness_results['sufficiency']
-        else:
-            dataset_results[dataset][method] = [None] * 5
+folded = True
+
+if not folded:
+    # read results
+    gnn_type = 'gcn'
+    dataset_results = {dataset: {} for dataset in datasets}
+    for dataset in datasets:
+        for method in methods:
+            path = f"data/{dataset}/{method}/faithfulness_{gnn_type}_run_1_test_only.pt"
+            if os.path.exists(path):
+                faithfulness_results = torch.load(path)
+                dataset_results[dataset][method] = faithfulness_results['sufficiency']
+            else:
+                dataset_results[dataset][method] = [None] * 5
+else:
+    # read results with fold
+    gnn_type = 'gcn'
+    dataset_results = {dataset: {} for dataset in datasets}
+    for dataset in datasets:
+        for method in methods:
+            dataset_results[dataset][method] = {fold: [] for fold in range(5)}
+            for fold in range(5):
+                path = f"data/{dataset}/{method}_fold/faithfulness_{gnn_type}_run_1_test_only_fold_{fold}.pt"
+                if os.path.exists(path):
+                    faithfulness_results = torch.load(path)
+                    dataset_results[dataset][method][fold] = faithfulness_results['sufficiency']
+                else:
+                    dataset_results[dataset][method][fold] = [None] * 5
+            if None not in np.array(list(dataset_results[dataset][method].values())).flatten():
+                dataset_results[dataset][method]['mean'] = []
+                dataset_results[dataset][method]['std'] = []
+                for i in range(len(dataset_results[dataset][method][0])):
+                    dataset_results[dataset][method]['mean'].append(np.mean([dataset_results[dataset][method][fold][i] for fold in range(5)]))
+                    dataset_results[dataset][method]['std'].append(np.std([dataset_results[dataset][method][fold][i] for fold in range(5)]))
+            else:
+                path = f"data/{dataset}/{method}/faithfulness_{gnn_type}_run_1_test_only.pt"
+                if os.path.exists(path):
+                    faithfulness_results = torch.load(path)
+                    dataset_results[dataset][method]['mean'] = faithfulness_results['sufficiency']
+                else:
+                    dataset_results[dataset][method]['mean'] = [None] * 5
+                dataset_results[dataset][method]['std'] = [0.0] * 5
 
 nrows = 3
 ncols = 3
@@ -60,11 +92,24 @@ for row_i in range(nrows):
         ax = axes[row_i][col_i]
         dataset_name = datasets[count]
 
-        for i, method_key in enumerate(methods):
-            if method_key in dataset_results[dataset_name]:
-                ls_results, = ax.plot(xticks, dataset_results[dataset_name][method_key], label=method_key, marker=markers[method_key], color=colors[method_key])
-                if count == 0:
-                    ls[i] = ls_results
+        if not folded:
+            for i, method_key in enumerate(methods):
+                if method_key in dataset_results[dataset_name]:
+                    ls_results, = ax.plot(xticks, dataset_results[dataset_name][method_key], label=method_key, marker=markers[method_key], color=colors[method_key])
+                    if count == 0:
+                        ls[i] = ls_results
+        else:
+            for i, method_key in enumerate(methods):
+                if method_key in dataset_results[dataset_name]:
+                    if 'mean' in dataset_results[dataset_name][method_key] and None not in dataset_results[dataset_name][method_key]['mean']:
+                        if None in dataset_results[dataset_name][method_key]['std']:
+                            ax.plot(xticks, dataset_results[dataset_name][method_key]['mean'], label=method_key, marker=markers[method_key], color=colors[method_key])
+                        else:
+                            ax.errorbar(x=xticks, y=dataset_results[dataset_name][method_key]['mean'], yerr=dataset_results[dataset_name][method_key]['std'],
+                                        label=method_key, marker=markers[method_key], color=colors[method_key], capsize=5)
+            if count == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                ls = [h[0] for h in handles]
 
         ax.minorticks_off()
         ax.set_xticks(xticks)
@@ -91,5 +136,8 @@ method_names = [method_name_map[method] for method in methods]
 axes[2][1].legend(handles=ls, labels=method_names,
                   loc='upper center', bbox_to_anchor=(0.4, -0.2), fancybox=False, shadow=False, ncol=len(methods), fontsize=labelsize)
 
-fig.savefig(f'plots/sufficiency_{gnn_type}_test_only.pdf', bbox_inches='tight')
+if not folded:
+    fig.savefig(f'plots/sufficiency_{gnn_type}_test_only.pdf', bbox_inches='tight')
+else:
+    fig.savefig(f'plots/sufficiency_{gnn_type}_test_only_fold.pdf', bbox_inches='tight')
 plt.show(tight_layout=True)

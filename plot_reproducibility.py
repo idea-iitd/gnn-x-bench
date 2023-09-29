@@ -1,10 +1,10 @@
-import os.path
-
-import matplotlib.pyplot as plt
+import os
 import torch
 import numpy as np
 import copy
+
 from matplotlib import rcParams
+import matplotlib.pyplot as plt
 
 rcParams['pdf.fonttype'] = 42
 rcParams['ps.fonttype'] = 42
@@ -41,6 +41,8 @@ colors = {
     "subgraphx": "brown"
 }
 
+folded = True
+
 # read results
 gnn_type = 'gcn'
 dataset_results = {}
@@ -51,17 +53,19 @@ for dataset in datasets:
     test_scores = scores['test_scores']
     auc_test = np.mean(test_scores["auc_or_r2"])
     for explainer in methods:
-        res = []
+        mean_res = []
+        std_res = []
         for k in [5, 10, 15, 20, 25]:
             path = f'data/{dataset}/reproducibility_{k}/{explainer}/{gnn_type}-max/all_scores_1_10.pt'
             if os.path.exists(path):
                 scores_k = torch.load(path)
                 test_scores_k = scores_k['test_scores']
-                auc_test_k = np.mean(test_scores_k["auc_or_r2"])
-                res.append(auc_test_k / auc_test)
+                mean_res.append(np.mean(test_scores_k["auc_or_r2"]) / auc_test)
+                std_res.append(np.std(test_scores_k["auc_or_r2"]) / auc_test)
             else:
-                res.append(None)
-        explainers_results[explainer] = res
+                mean_res.append(None)
+                std_res.append(None)
+        explainers_results[explainer] = {'mean': mean_res, 'std': std_res}
     dataset_results[dataset] = copy.deepcopy(explainers_results)
 
 nrows = 2
@@ -82,11 +86,24 @@ for row_i in range(nrows):
         ax = axes[row_i][col_i]
         dataset_name = datasets[count]
 
-        for i, method_key in enumerate(methods):
-            if method_key in dataset_results[dataset_name]:
-                ls_results, = ax.plot(xticks, dataset_results[dataset_name][method_key], label=method_key, marker=markers[method_key], color=colors[method_key])
-                if count == 0:
-                    ls[i] = ls_results
+        if not folded:
+            for i, method_key in enumerate(methods):
+                if method_key in dataset_results[dataset_name]:
+                    ls_results, = ax.plot(xticks, dataset_results[dataset_name][method_key]['mean'], label=method_key, marker=markers[method_key], color=colors[method_key])
+                    if count == 0:
+                        ls[i] = ls_results
+        else:
+            for i, method_key in enumerate(methods):
+                if method_key in dataset_results[dataset_name]:
+                    if 'mean' in dataset_results[dataset_name][method_key] and None not in dataset_results[dataset_name][method_key]['mean']:
+                        if None in dataset_results[dataset_name][method_key]['std']:
+                            ax.plot(xticks, dataset_results[dataset_name][method_key]['mean'], label=method_key, marker=markers[method_key], color=colors[method_key])
+                        else:
+                            ax.errorbar(x=xticks, y=dataset_results[dataset_name][method_key]['mean'], yerr=dataset_results[dataset_name][method_key]['std'],
+                                        label=method_key, marker=markers[method_key], color=colors[method_key], capsize=5)
+            if count == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                ls = [h[0] for h in handles]
 
         ax.minorticks_off()
         ax.set_xticks(xticks)
@@ -113,5 +130,8 @@ method_names = [method_name_map[method] for method in methods]
 axes[1][1].legend(handles=ls, labels=method_names,
                   loc='upper center', bbox_to_anchor=(0.4, -0.2), fancybox=False, shadow=False, ncol=len(methods), fontsize=labelsize)
 
-fig.savefig(f'plots/reproducibility_{gnn_type}.pdf', bbox_inches='tight')
+if not folded:
+    fig.savefig(f'plots/reproducibility_{gnn_type}.pdf', bbox_inches='tight')
+else:
+    fig.savefig(f'plots/reproducibility_{gnn_type}_fold.pdf', bbox_inches='tight')
 plt.show(tight_layout=True)
