@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                     help="Dataset name")
 parser.add_argument('--random_seed', type=int, default=0)
 
@@ -25,7 +25,7 @@ parser.add_argument('--device', type=str, default='0')
 parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'], help='GNN layer type to use.')
-parser.add_argument('--robustness', action='store_true')
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 parser.add_argument('--stage', type=int, default=2, help='Stage to run. Default is 2. 1 is embedding explainer, 2 is embedding explainer+downstream training.')
 
 args = parser.parse_args()
@@ -74,7 +74,7 @@ if args.stage == 2:
     mlp = train_MLP(model, trainer.dim, device, train_loader, valid_loader, save_to=args.best_downstream_mlp_model_path)
     mlp_explainer = MLPExplainer(mlp, device=device)
 
-if not args.robustness:
+if args.robustness == 'na':
     embedding_explainer.train_explainer_graph(train_loader, epochs=args.epochs, lr=lr)
     torch.save(embedding_explainer.explainer.state_dict(), args.best_explainer_model_path)
     explanation_graphs = []
@@ -96,7 +96,7 @@ if not args.robustness:
             edge_weight=explanation.detach().clone()
         ))
     torch.save(explanation_graphs, explanations_path)
-else:
+elif args.robustness == 'topology_random':
     # load trained explainers
     embedding_explainer.explainer.load_state_dict(torch.load(args.best_explainer_model_path, map_location=device))
     embedding_explainer.eval()
@@ -126,3 +126,65 @@ else:
                 edge_weight=explanation.detach().clone()
             ))
         torch.save(explanation_graphs, explanations_path)
+elif args.robustness == 'feature':
+    # load trained explainers
+    embedding_explainer.explainer.load_state_dict(torch.load(args.best_explainer_model_path, map_location=device))
+    embedding_explainer.eval()
+    if args.stage == 2:
+        mlp = MLP(2, trainer.dim, trainer.dim).to(device)
+        mlp.load_state_dict(torch.load(args.best_downstream_mlp_model_path, map_location=device))
+        mlp_explainer = MLPExplainer(mlp, device=device)
+        mlp_explainer.eval()
+    for noise in [10, 20, 30, 40, 50]:
+        explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_feature_noise_{noise}.pt')
+        explanation_graphs = []
+        noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+        for i in tqdm(range(len(dataset))):
+            noisy_graph = noisy_dataset[i].to(device)
+            if args.stage == 1:
+                with torch.no_grad():
+                    node_embed, _, _ = model(noisy_graph)
+                    _, _, explanation = embedding_explainer.explain(noisy_graph, node_embed, training=False)
+            elif args.stage == 2:
+                explanation = embedding_explainer(noisy_graph, mlp_explainer)
+            else:
+                raise NotImplementedError
+            explanation_graphs.append(Data(
+                edge_index=noisy_graph.edge_index.clone(),
+                x=noisy_graph.x.clone(),
+                y=noisy_graph.y.clone(),
+                edge_weight=explanation.detach().clone()
+            ))
+        torch.save(explanation_graphs, explanations_path)
+elif args.robustness == 'topology_adversarial':
+    # load trained explainers
+    embedding_explainer.explainer.load_state_dict(torch.load(args.best_explainer_model_path, map_location=device))
+    embedding_explainer.eval()
+    if args.stage == 2:
+        mlp = MLP(2, trainer.dim, trainer.dim).to(device)
+        mlp.load_state_dict(torch.load(args.best_downstream_mlp_model_path, map_location=device))
+        mlp_explainer = MLPExplainer(mlp, device=device)
+        mlp_explainer.eval()
+    for flip_count in [1, 2, 3, 4, 5]:
+        explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_topology_adversarial_{flip_count}.pt')
+        explanation_graphs = []
+        noisy_dataset = data_utils.load_dataset(data_utils.get_topology_adversarial_attack_dataset_name(dataset_name=args.dataset, flip_count=flip_count))
+        for i in tqdm(range(len(dataset))):
+            noisy_graph = noisy_dataset[i].to(device)
+            if args.stage == 1:
+                with torch.no_grad():
+                    node_embed, _, _ = model(noisy_graph)
+                    _, _, explanation = embedding_explainer.explain(noisy_graph, node_embed, training=False)
+            elif args.stage == 2:
+                explanation = embedding_explainer(noisy_graph, mlp_explainer)
+            else:
+                raise NotImplementedError
+            explanation_graphs.append(Data(
+                edge_index=noisy_graph.edge_index.clone(),
+                x=noisy_graph.x.clone(),
+                y=noisy_graph.y.clone(),
+                edge_weight=explanation.detach().clone()
+            ))
+        torch.save(explanation_graphs, explanations_path)
+else:
+    raise NotImplementedError

@@ -6,7 +6,7 @@ import json
 import pickle
 
 from torch_geometric.datasets import TUDataset
-from torch_geometric.utils import degree
+from torch_geometric.utils import degree, dense_to_sparse, to_dense_adj
 from torch_geometric.transforms import RemoveIsolatedNodes, ToUndirected
 
 from torch.utils.data import random_split
@@ -30,7 +30,7 @@ class MutagenicityNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(MutagenicityNoisy, self).__init__(root, transform, pre_transform)
@@ -108,7 +108,7 @@ class ProteinsNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(ProteinsNoisy, self).__init__(root, transform, pre_transform)
@@ -187,7 +187,7 @@ class IMDBNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        self.original_graphs = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
         self.graph_count = len(self.original_graphs)
 
         super(IMDBNoisy, self).__init__(root, transform, pre_transform)
@@ -266,7 +266,7 @@ class AIDSNoisy(Dataset):
         self.cleaned = False
         self.max_graph_size = float('inf')
 
-        self.original_graphs = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        self.original_graphs = TUDataset(root=root, name='AIDS', use_node_attr=True)
         self.graph_count = len(self.original_graphs)
 
         super(AIDSNoisy, self).__init__(root, transform, pre_transform)
@@ -434,6 +434,203 @@ class SentiGraphDataset(InMemoryDataset):
         torch.save((self.data, self.slices, self.supplement), self.processed_paths[0])
 
 
+class ProteinsFeatureNoisy(Dataset):
+    def __init__(self, root, noise, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.noise = noise
+        self.name = f'ProteinsFeatureNoisy{noise}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(ProteinsFeatureNoisy, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    @staticmethod
+    def perturb_features(graph, num_samples):
+        np.random.seed(0)
+        perturbed_x = graph.x.clone().detach().numpy()
+        # sample 50% nodes randomly chosen
+        chosen_idx = np.random.randint(0, graph.x.shape[0], size=int(0.5 * graph.x.shape[0]))
+
+        for idx in chosen_idx:
+            # for sampled nodes generate perturbation mark where num_samples% features are perturbed
+            mask = np.random.choice([0, 1], size=graph.x.shape[1], p=[1 - num_samples / 100, num_samples / 100])
+            perb_idx = np.where(mask == 1)[0]
+            # perturb the features
+            # feature-informed perb
+            for id in perb_idx:
+                mu, sigma = np.mean(perturbed_x[:, id]), np.std(perturbed_x[:, id])
+                delta = np.random.uniform(-0.1, 0.1, 1)
+                perturbed_x[idx][id] = perturbed_x[idx][id] + delta * sigma
+                # completely random perb
+            # mu, sigma = 0, 2 # mean and standard deviation
+            # noise = np.random.normal(mu, sigma, perb_idx.shape[0])
+            # for i, perb in enumerate(noise):
+            #     perturbed_x[idx][perb_idx[i]] = perturbed_x[idx][perb_idx[i]] + perb 
+        # return perturbed features
+        return torch.tensor(perturbed_x)
+
+    def noise_graph(self, graph, num_samples):
+        perturbed_x = self.perturb_features(graph, num_samples)
+        data = Data(edge_index=graph.edge_index.clone(),
+                    x=perturbed_x.clone(),
+                    y=graph.y.clone())
+        return data
+
+    def process(self):
+        for i, graph in enumerate(self.original_graphs):
+            data = self.noise_graph(graph, self.noise)
+            torch.save(data, os.path.join(self.processed_dir, f'data_{i}.pt'))
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
+class ProteinsTopologyAdversarialAttack(Dataset):
+    def __init__(self, root, flip_count, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.flip_count = flip_count
+        self.name = f'ProteinsTopologyAdversarialAttack{flip_count}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(ProteinsTopologyAdversarialAttack, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def random_sample_flip(self, graph, flip_count):
+        random.seed(0)
+        np.random.seed(0)
+        edges_to_flip = set()
+        while len(edges_to_flip) < flip_count:
+            patience = 100
+            while patience > 0:
+                all_nodes = range(graph.num_nodes)
+                allowed_nodes = all_nodes
+                u = np.random.choice(allowed_nodes, replace=False, )
+                v = np.random.choice(allowed_nodes, replace=False, )
+                if u == v:
+                    patience -= 1
+                    continue
+                u, v = min(u, v), max(u, v)
+                edges_to_flip.add((u, v))
+                break
+            if patience < 0:
+                pass
+        return edges_to_flip
+
+    def flip_edges(self, graph, edges_to_flip):
+        adj = to_dense_adj(graph.edge_index).squeeze()
+        for u, v in edges_to_flip:
+            if adj[u, v] == 1:
+                adj[u, v] = 0
+                adj[v, u] = 0
+            else:
+                adj[u, v] = 1
+                adj[v, u] = 1
+        new_edge_index = dense_to_sparse(adj)[0]
+        data = Data(edge_index=new_edge_index.clone(),
+                    x=graph.x.clone(),
+                    y=graph.y.clone())
+        return data
+
+    def noise_graph(self, graph, flip_count):
+        edges_to_flip = self.random_sample_flip(graph, flip_count)
+        new_data = self.flip_edges(graph, edges_to_flip)
+        return new_data
+
+    def process(self):
+        for i, graph in enumerate(self.original_graphs):
+            data = self.noise_graph(graph, self.flip_count)
+            torch.save(data, os.path.join(self.processed_dir, f'data_{i}.pt'))
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
 def split_data(data, train_ratio=0.8, val_ratio=0.1):
     gen = torch.Generator().manual_seed(0)
     train_size = int(len(data) * train_ratio)
@@ -492,6 +689,20 @@ def get_noisy_dataset_name(dataset_name, noise):
         raise NotImplementedError
 
 
+def get_noisy_feature_dataset_name(dataset_name, noise):
+    if dataset_name == 'Proteins':
+        return f'ProteinsFeatureNoisy{noise}'
+    else:
+        raise NotImplementedError
+
+
+def get_topology_adversarial_attack_dataset_name(dataset_name, flip_count):
+    if dataset_name == 'Proteins':
+        return f'ProteinsTopologyAdversarialAttack{flip_count}'
+    else:
+        raise NotImplementedError
+
+
 class IMDBPreTransform(object):
     def __call__(self, data):
         data.x = degree(data.edge_index[0], data.num_nodes, dtype=torch.long)
@@ -506,39 +717,45 @@ class REDDITPreTransform(object):
         return data
 
 
-def load_dataset(dataset_name):
+def load_dataset(dataset_name, root='data/'):
     if dataset_name == 'Mutagenicity':
-        data = TUDataset(root='data/', name='Mutagenicity', use_node_attr=True)
+        data = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
     elif "MutagenicityNoisy" in dataset_name:
         noise = int(dataset_name[17:])
-        data = MutagenicityNoisy(root='data/', noise=noise)
+        data = MutagenicityNoisy(root=root, noise=noise)
     elif dataset_name == 'Mutag':
-        data = TUDataset(root='data/', name='MUTAG', use_node_attr=True)
+        data = TUDataset(root=root, name='MUTAG', use_node_attr=True)
     elif dataset_name == 'Proteins':
-        data = TUDataset(root='data/', name='PROTEINS_full', use_node_attr=True)
+        data = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
     elif "ProteinsNoisy" in dataset_name:
         noise = int(dataset_name[13:])
-        data = ProteinsNoisy(root='data/', noise=noise)
+        data = ProteinsNoisy(root=root, noise=noise)
+    elif 'ProteinsFeatureNoisy' in dataset_name:
+        noise = int(dataset_name[20:])
+        data = ProteinsFeatureNoisy(root=root, noise=noise)
+    elif 'ProteinsTopologyAdversarialAttack' in dataset_name:
+        flip = int(dataset_name[33:])
+        data = ProteinsTopologyAdversarialAttack(root=root, flip_count=flip)
     elif dataset_name == 'IMDB-B':
-        data = TUDataset(root='data/', name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        data = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
     elif 'IMDBNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = IMDBNoisy(root='data/', noise=noise)
+        data = IMDBNoisy(root=root, noise=noise)
     elif dataset_name == 'AIDS':
-        data = TUDataset(root='data/', name='AIDS', use_node_attr=True)
+        data = TUDataset(root=root, name='AIDS', use_node_attr=True)
     elif 'AIDSNoisy' in dataset_name:
         noise = int(dataset_name[9:])
-        data = AIDSNoisy(root='data/', noise=noise)
+        data = AIDSNoisy(root=root, noise=noise)
     elif dataset_name == 'NCI1':
-        data = TUDataset(root='data/', name='NCI1', use_node_attr=True)
+        data = TUDataset(root=root, name='NCI1', use_node_attr=True)
     elif dataset_name == 'Graph-SST2':
-        data = SentiGraphDataset(root='data/', name='Graph-SST2')
+        data = SentiGraphDataset(root=root, name='Graph-SST2')
     elif dataset_name == 'DD':
-        data = TUDataset(root='data/', name='DD', use_node_attr=True)
+        data = TUDataset(root=root, name='DD', use_node_attr=True)
     elif dataset_name == 'REDDIT-B':
-        data = TUDataset(root='data/', name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
+        data = TUDataset(root=root, name='REDDIT-BINARY', pre_transform=REDDITPreTransform())
     elif dataset_name == 'ogbg_molhiv':
-        data = PygGraphPropPredDataset(root='data/', name='ogbg-molhiv')
+        data = PygGraphPropPredDataset(root=root, name='ogbg-molhiv')
     else:
         raise NotImplementedError(f'Dataset: {dataset_name} is not implemented!')
 
@@ -589,6 +806,16 @@ def select_top_k_explanations(dataset, top_k):
     return top_k_dataset
 
 
+def sample_subsets(indices, dataset, num_samples=5):
+    seeds = [1, 3, 5, 7, 9]
+    subsets = []
+    for seed in seeds:
+        random.seed(seed)
+        subsets.append(np.random.choice(indices, size=int(0.2 * len(indices)), replace=False))
+    pickle.dump(subsets, open(f'data/{dataset}/test_subsets.pkl', 'wb'))
+    return subsets
+
+
 if __name__ == '__main__':
     # generate datasets
     for dataset_name in ['Mutagenicity', 'Proteins', 'IMDB-B', 'Mutag', 'AIDS', 'NCI1', 'Graph-SST2', 'DD', 'REDDIT-B']:
@@ -598,3 +825,9 @@ if __name__ == '__main__':
     for dataset_name in ['Mutagenicity', 'Proteins', 'IMDB', 'AIDS']:
         for noise in [1, 2, 3, 4, 5]:
             load_dataset(f'{dataset_name}Noisy{noise}')
+
+    # generate noisy datasets: feature-space perturbation
+    for dataset_name in ['Proteins']:
+        # % of features perturbed
+        for noise in [10, 20, 30, 40, 50]:
+            load_dataset(f'{dataset_name}FeatureNoisy{noise}')

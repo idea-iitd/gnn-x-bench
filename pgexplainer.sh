@@ -12,12 +12,13 @@ taskset -c $cpus python source/pgexplainer.py --dataset NCI1 --gnn_type $gnn_typ
 taskset -c $cpus python source/pgexplainer.py --dataset Graph-SST2 --gnn_type $gnn_type --device $device
 taskset -c $cpus python source/pgexplainer.py --dataset REDDIT-B --gnn_type $gnn_type --device $device
 taskset -c $cpus python source/pgexplainer.py --dataset DD --gnn_type $gnn_type --device $device
+taskset -c $cpus python source/pgexplainer.py --dataset ogbg_molhiv --gnn_type $gnn_type --device $device
 
 # collect explanations from noisy datasets
-taskset -c $cpus python source/pgexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/pgexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/pgexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/pgexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness
+taskset -c $cpus python source/pgexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/pgexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/pgexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/pgexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_random
 
 # stability seeds
 seeds="2 3"
@@ -57,6 +58,7 @@ done
 #    fi
 #    if [ "$metric" = "faithfulness" ]; then
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset Graph-SST2 --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
+#      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset ogbg_molhiv --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset REDDIT-B --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #      taskset -c $cpus python source/result_generator.py --explainer_name "$explainer" --dataset DD --gnn_type "$gnn_type" --device cpu --explanation_metric "$metric"
 #    fi

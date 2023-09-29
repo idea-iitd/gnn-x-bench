@@ -72,6 +72,7 @@ class GraphExplainerEdge(torch.nn.Module):
     def explain_dataset(self):
 
         cfs = []
+        cf_list = []
         exps = []
         total_sufficiency = 0
         total_necessity = 0
@@ -94,6 +95,33 @@ class GraphExplainerEdge(torch.nn.Module):
                        num_nodes=g.num_nodes,
                        x=g.x.clone().cpu())
             exps.append(exp)
+
+            # * Counterfactual setting
+            if args.alp != 0:
+                continue
+            graph = Data(
+                x=g.x.clone().detach(),
+                edge_index=g.edge_index.clone().detach(),
+                edge_attr=g.edge_attr.clone().detach() if g.edge_attr is not None else None,
+                edge_weight=torch.ones(g.edge_index.size(1))
+            ).to(self.device)
+            graph_cf = Data(
+                x=g.x.clone(),
+                edge_index=g.edge_index.clone().detach(),
+                edge_attr=g.edge_attr.clone().detach() if g.edge_attr is not None else None,
+                edge_weight=1 - binarized_mask.clone().detach()
+            ).to(self.device)
+            label = int(g.y)
+            pred = self.base_model(graph, graph.edge_weight)[-1][0]
+            pred_cf = self.base_model(graph_cf, graph_cf.edge_weight)[-1][0]
+            cf_list.append({
+                "graph": graph.cpu(), "graph_cf": graph_cf.cpu(),
+                "label": label, "pred": pred.cpu(), "pred_cf": pred_cf.cpu()
+            })
+
+        if args.alp == 0:
+            cf_list_save_path = "/".join(counterfactual_path.split("/")[:-1]) + f"/explanations_{args.gnn_type}_run_{args.explainer_run}{f'_noise_{noise}' if args.robustness else ''}.pt"
+            torch.save(cf_list, cf_list_save_path)
 
         return exps, cfs, total_sufficiency / len(cfs), total_necessity / len(cfs), total_size / len(cfs)
 
@@ -129,7 +157,7 @@ class GraphExplainerEdge(torch.nn.Module):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B'],
+                    choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                     help="Dataset name")
 parser.add_argument('--lam', type=int, default=20,
                     help='Lambda hyperparameter. Need to be tuned to make 1-norm loss and contrastive loss into the same scale. Default is 1000. ')
@@ -143,7 +171,7 @@ parser.add_argument('--device', type=str, default="0")
 parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'])
-parser.add_argument('--robustness', action='store_true')
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 
 args = parser.parse_args()
 
@@ -154,8 +182,10 @@ if not os.path.exists(result_folder):
 
 device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() and args.device != 'cpu' else 'cpu')
 dataset = data_utils.load_dataset(args.dataset)
-dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 splits, indices = data_utils.split_data(dataset)
+if args.alp == 0:
+    dataset = dataset[indices[2]] # test graphs only as this is not an inductive explainer.
+dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
 torch.manual_seed(args.explainer_run)
 torch.cuda.manual_seed(args.explainer_run)
@@ -172,7 +202,7 @@ model.eval()
 
 node_embeddings, graph_embeddings, outs = trainer.load_gnn_outputs(args.gnn_run)
 
-if not args.robustness:
+if args.robustness == 'na':
     explainer = GraphExplainerEdge(
         base_model=model,
         G_dataset=dataloader,
@@ -180,13 +210,17 @@ if not args.robustness:
         device=device,
     )
     exps, cfs, sufficiency, necessity, average_size = explainer.explain_dataset()
-    torch.save(exps, explanations_path)
-    torch.save(cfs, counterfactual_path)
-else:
+    if args.alp != 0: # Save the following only in the factual setting.
+        torch.save(exps, explanations_path)
+        torch.save(cfs, counterfactual_path)
+elif args.robustness == 'topology_random':
     for noise in [1, 2, 3, 4, 5]:
         explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
         counterfactual_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
         noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+        splits, indices = data_utils.split_data(noisy_dataset)
+        if args.alp == 0:
+            noisy_dataset = noisy_dataset[indices[2]] # test graphs only as this is not an inductive explainer.
         dataloader = DataLoader(noisy_dataset, batch_size=1, shuffle=False)
         explainer = GraphExplainerEdge(
             base_model=model,
@@ -195,5 +229,25 @@ else:
             device=device,
         )
         exps, cfs, sufficiency, necessity, average_size = explainer.explain_dataset()
-        torch.save(exps, explanations_path)
-        torch.save(cfs, counterfactual_path)
+        if args.alp != 0: # Save the following only in the factual setting.
+            torch.save(exps, explanations_path)
+            torch.save(cfs, counterfactual_path)
+elif args.robustness == 'feature':
+    for noise in [10, 20, 30, 40, 50]:
+        explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_feature_noise_{noise}.pt')
+        counterfactual_path = os.path.join(result_folder, f'counterfactuals_{args.gnn_type}_run_{args.explainer_run}_feature_noise_{noise}.pt')
+        noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_feature_dataset_name(dataset_name=args.dataset, noise=noise))
+        splits, indices = data_utils.split_data(noisy_dataset)
+        if args.alp == 0:
+            noisy_dataset = noisy_dataset[indices[2]] # test graphs only as this is not an inductive explainer.
+        dataloader = DataLoader(noisy_dataset, batch_size=1, shuffle=False)
+        explainer = GraphExplainerEdge(
+            base_model=model,
+            G_dataset=dataloader,
+            args=args,
+            device=device,
+        )
+        exps, cfs, sufficiency, necessity, average_size = explainer.explain_dataset()
+        if args.alp != 0: # Save the following only in the factual setting.
+            torch.save(exps, explanations_path)
+            torch.save(cfs, counterfactual_path)
