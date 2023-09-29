@@ -15,10 +15,10 @@ taskset -c $cpus python source/gnnexplainer.py --dataset REDDIT-B --gnn_type $gn
 taskset -c $cpus python source/gnnexplainer.py --dataset DD --gnn_type $gnn_type --device $device
 
 # collect explanations from noisy datasets
-taskset -c $cpus python source/gnnexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/gnnexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/gnnexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness
-taskset -c $cpus python source/gnnexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness
+taskset -c $cpus python source/gnnexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/gnnexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/gnnexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_random
+taskset -c $cpus python source/gnnexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_random
 
 # stability seeds
 seeds="2 3"

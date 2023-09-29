@@ -21,10 +21,10 @@ done
 # collect explanations from noisy datasets
 stages="1 2"
 for stage_no in $stages; do
-  taskset -c $cpus python source/tagexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --stage $stage_no --robustness
-  taskset -c $cpus python source/tagexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --stage $stage_no --robustness
-  taskset -c $cpus python source/tagexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --stage $stage_no --robustness
-  taskset -c $cpus python source/tagexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --stage $stage_no --robustness
+  taskset -c $cpus python source/tagexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
+  taskset -c $cpus python source/tagexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
+  taskset -c $cpus python source/tagexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
+  taskset -c $cpus python source/tagexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
 done
 
 # stability seeds

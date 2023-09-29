@@ -15,10 +15,10 @@ taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $dev
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --lambda_ 1.0 --dataset ogbg_molhiv
 
 # collect explanations from noisy datasets
-taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness --lambda_ 1.0 --dataset Mutagenicity
-taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness --lambda_ 1.0 --dataset Proteins
-taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness --lambda_ 1.0 --dataset IMDB-B
-taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness --lambda_ 1.0 --dataset AIDS
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset Mutagenicity
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset Proteins
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset IMDB-B
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset AIDS
 
 # stability seeds
 seeds="2 3"

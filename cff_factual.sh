@@ -14,10 +14,10 @@ taskset -c $cpus python source/cff.py --dataset REDDIT-B --gnn_type $gnn_type --
 taskset -c $cpus python source/cff.py --dataset DD --gnn_type $gnn_type --device $device --alp 1.0
 
 # collect explanations from noisy datasets
-taskset -c $cpus python source/cff.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness --alp 1.0
-taskset -c $cpus python source/cff.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness --alp 1.0
-taskset -c $cpus python source/cff.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness --alp 1.0
-taskset -c $cpus python source/cff.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness --alp 1.0
+taskset -c $cpus python source/cff.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness topology_random --alp 1.0
+taskset -c $cpus python source/cff.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness topology_random --alp 1.0
+taskset -c $cpus python source/cff.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_random --alp 1.0
+taskset -c $cpus python source/cff.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_random --alp 1.0
 
 # stability seeds
 seeds="2 3"
