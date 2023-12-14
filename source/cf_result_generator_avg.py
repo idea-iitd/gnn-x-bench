@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('--gnn_run', type=int, default=1, help='random seed for gnn run')
     parser.add_argument('--explainer_run', type=int, default=1, help='random seed for explainer run')
     parser.add_argument('--explainer_name', type=str, choices=['cff_0.0','rcexplainer_0.0', 'clear'], help='Name of explainer to use.')
-    parser.add_argument('--explanation_metric','--list', nargs='+', help='<Required> Set flag', required=True, type=str, choices=['sufficiency', 'size', 'sparsity', 'stability_noise', 'stability_feature_noise', 'stability_adversarial_noise', 'stability_seed', 'stability_base', 'feasibility', 'feasibility_valence'])
+    parser.add_argument('--explanation_metric','--list', nargs='+', help='<Required> Set flag', required=True, type=str, choices=['sufficiency', 'size', 'sparsity', 'stability_noise', 'stability_feature_noise', 'stability_adversarial_noise', 'stability_seed', 'stability_base', 'feasibility'])
     parser.add_argument('--verbose', type=int, default=1, help='Default: 1 (print computed metric), else 0')
     return parser.parse_args()
 
@@ -385,20 +385,6 @@ if __name__ == '__main__':
         e_c, o_c, chi_sq = metrics.feasibility(args.explainer_name, explanations, test_indices)
         feasibility_scores_dict['feasibility'] = {'expected_count':e_c, 'observed_count':o_c, 'chi_squared':chi_sq}
         torch.save(feasibility_scores_dict, result_folder + f'cf_feasibility_{args.gnn_type}_run_{args.explainer_run}.pt')
-
-        if(args.verbose):
-            print(f'----------- Feasibility ---------------')    
-            print(f'Expected_count: {e_c}')
-            print(f'Observed_count: {o_c}')
-            print(f'Chi_squared: {chi_sq}')
-            
-    if 'feasibility_valence' in args.explanation_metric:
-        flag = True
-        assert(args.dataset in ['Mutagenicity', 'Proteins', 'Mutag','AIDS'])
-        feasibility_valence_scores_dict = {}
-        e_c, o_c, chi_sq = metrics.feasibility_valence(args.explainer_name, explanations, test_indices)
-        feasibility_valence_scores_dict['feasibility'] = {'expected_count':e_c, 'observed_count':o_c, 'chi_squared':chi_sq}
-        torch.save(feasibility_valence_scores_dict, result_folder + f'cf_feasibility_valence_{args.gnn_type}_run_{args.explainer_run}.pt')
 
         if(args.verbose):
             print(f'----------- Feasibility ---------------')    
