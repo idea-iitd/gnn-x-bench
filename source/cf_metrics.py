@@ -240,7 +240,7 @@ def robustness(explainer, explanation_1, explanation_2, indices):
 #compute num connected components
 def is_connected_check(exp, data_dict, explainer, graph_type='orig'):
     #convert to networkx
-    if(explainer != 'rcexplainer_0.0' or graph_type=='orig'):
+    if(graph_type=='orig'):
         nx_graph = to_networkx(exp, node_attrs=["x"], edge_attrs=["edge_weight"], to_undirected=True)
         return nx.is_connected(nx_graph)
     else:
