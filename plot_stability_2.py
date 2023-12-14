@@ -8,7 +8,7 @@ from matplotlib import rcParams
 rcParams['pdf.fonttype'] = 42
 rcParams['ps.fonttype'] = 42
 
-methods = ["pgexplainer", "tagexplainer_1", 'rcexplainer_1.0', 'gnnexplainer']
+methods = ["pgexplainer", "tagexplainer_1", 'rcexplainer_1.0', 'gnnexplainer', 'gem']
 method_name_map = {
     "pgexplainer": "PGExplainer",
     "tagexplainer_1": "TAGExplainer",
@@ -220,7 +220,7 @@ axes[0].legend(handles=ls, labels=method_names,
                loc='upper center', bbox_to_anchor=(1.0, -0.2), fancybox=False, shadow=False, ncol=len(methods), fontsize=labelsize)
 
 if not folded:
-    fig.savefig(f'plots/stability_new_{gnn_type}.pdf', bbox_inches='tight')
+    fig.savefig(f'plots/stability_new_{gnn_type}_2.pdf', bbox_inches='tight')
 else:
-    fig.savefig(f'plots/stability_new_{gnn_type}_fold.pdf', bbox_inches='tight')
+    fig.savefig(f'plots/stability_new_{gnn_type}_fold_2.pdf', bbox_inches='tight')
 plt.show(tight_layout=True)

@@ -92,7 +92,7 @@ ticksize = 12
 markersize = 6
 linewidth = 1.5
 
-xticks = [2, 4, 6, 8, 10]
+xticks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 count = 0
 ls = [None] * len(methods)
@@ -128,7 +128,7 @@ for row_i in range(nrows):
             ax.set_ylabel('Necessity', fontsize=labelsize)
         ax.tick_params(axis='x', labelsize=ticksize)
         ax.tick_params(axis='y', labelsize=ticksize)
-        ax.set_xlim(1, 11)
+        ax.set_xlim(0, 11)
         ax.grid(True)
 
         count += 1

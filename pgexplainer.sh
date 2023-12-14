@@ -20,6 +20,16 @@ taskset -c $cpus python source/pgexplainer.py --dataset Proteins --gnn_type $gnn
 taskset -c $cpus python source/pgexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_random
 taskset -c $cpus python source/pgexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_random
 
+# collect explanations from noisy features datasets
+taskset -c $cpus python source/pgexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness feature
+taskset -c $cpus python source/pgexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness feature
+
+# collect explanations from topology adversarial attacked datasets
+taskset -c $cpus python source/pgexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness topology_adversarial
+taskset -c $cpus python source/pgexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness topology_adversarial
+taskset -c $cpus python source/pgexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_adversarial
+taskset -c $cpus python source/pgexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_adversarial
+
 # stability seeds
 seeds="2 3"
 for seed in $seeds; do

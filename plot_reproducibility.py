@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 rcParams['pdf.fonttype'] = 42
 rcParams['ps.fonttype'] = 42
 
-methods = ["pgexplainer", "tagexplainer_1", 'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphx']
+methods = ["pgexplainer", "tagexplainer_1", 'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem']
 method_name_map = {
     "pgexplainer": "PGExplainer",
     "tagexplainer_1": "TAGExplainer",
@@ -55,7 +55,7 @@ for dataset in datasets:
     for explainer in methods:
         mean_res = []
         std_res = []
-        for k in [5, 10, 15, 20, 25]:
+        for k in range(1, 11, 1):
             path = f'data/{dataset}/reproducibility_{k}/{explainer}/{gnn_type}-max/all_scores_1_10.pt'
             if os.path.exists(path):
                 scores_k = torch.load(path)
@@ -77,7 +77,7 @@ ticksize = 12
 markersize = 6
 linewidth = 1.5
 
-xticks = [5, 10, 15, 20, 25]
+xticks = range(1, 11, 1)
 
 count = 0
 ls = [None] * len(methods)
@@ -110,10 +110,10 @@ for row_i in range(nrows):
         ax.set_title(dataset_name, fontsize=labelsize)
         ax.set_xticklabels(xticks)
         if col_i == 0:
-            ax.set_ylabel('Reproducibility', fontsize=labelsize)
+            ax.set_ylabel(r'Reproducibility$^+$', fontsize=labelsize)
         ax.tick_params(axis='x', labelsize=ticksize)
         ax.tick_params(axis='y', labelsize=ticksize)
-        ax.set_xlim(4, 26)
+        ax.set_xlim(0.5, 10.5)
         ax.grid(True)
 
         count += 1

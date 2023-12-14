@@ -11,7 +11,7 @@ import os
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='Mutagenicity',
-                        choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Tree-of-Life', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
+                        choices=['Mutagenicity', 'Proteins', 'Mutag', 'IMDB-B', 'AIDS', 'NCI1', 'Graph-SST2', 'DD', 'REDDIT-B', 'ogbg_molhiv'],
                         help="Dataset name")
     parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'], help='GNN layer type to use.')
     parser.add_argument('--device', type=str, default="0", help='Index of cuda device to use. Default is 0.')
@@ -20,8 +20,8 @@ def parse_args():
     parser.add_argument('--explainer_name', type=str, choices=['pgexplainer', 'tagexplainer', 'tagexplainer_1', 'tagexplainer_2',
                                                                'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphx'],
                         help='Name of explainer to use.')
-    parser.add_argument('--explanation_metric', type=str, choices=['faithfulness', 'faithfulness_with_removal', 'faithfulness_on_test', 'stability_noise', 'stability_seed',
-                                                                   'stability_base', 'stability_noise_feature', 'stability_topology_adversarial'],
+    parser.add_argument('--explanation_metric', type=str, choices=['faithfulness', 'faithfulness_with_removal', 'faithfulness_on_test', 'faithfulness_under_noise',
+                                                                   'stability_noise', 'stability_seed', 'stability_base', 'stability_noise_feature', 'stability_topology_adversarial'],
                         help='Explanation metric to use.')
     parser.add_argument('--folded', action='store_true', help='Whether to use folded results.')
     return parser.parse_args()
@@ -71,6 +71,7 @@ if __name__ == '__main__':
             explanations_fold = [explanations[idx] for idx in indices]
             dataset_fold = [dataset[idx] for idx in indices]
         else:
+            indices = range(len(dataset))
             explanations_fold = explanations
             dataset_fold = dataset
 
@@ -100,7 +101,7 @@ if __name__ == '__main__':
             else:
                 torch.save(faithfulness_scores_dict, result_folder + f'faithfulness_{args.gnn_type}_run_{args.explainer_run}_test_only.pt')
         elif args.explanation_metric == 'faithfulness_with_removal':
-            ks = [2, 4, 6, 8, 10]
+            ks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             metric_names = ['necessity']
             faithfulness_scores_dict = {metric: [] for metric in metric_names}
             for k in ks:
@@ -111,13 +112,34 @@ if __name__ == '__main__':
                 torch.save(faithfulness_scores_dict, result_folder + f'faithfulness_with_removal_{args.gnn_type}_run_{args.explainer_run}_fold_{fold}.pt')
             else:
                 torch.save(faithfulness_scores_dict, result_folder + f'faithfulness_with_removal_{args.gnn_type}_run_{args.explainer_run}.pt')
+        elif args.explanation_metric == 'faithfulness_under_noise':
+            k = 10  # fixed explanation size
+            metric_names = ['sufficiency']
+            faithfulness_scores_dict = {metric: [] for metric in metric_names}
+            # noise amount = 0
+            faithfulness_scores = metrics.faithfulness(model, dataset_fold, explanations_fold, k, metric_names, device=device)
+            for i in range(len(metric_names)):
+                faithfulness_scores_dict[metric_names[i]].append(faithfulness_scores[i])
+            for noise_amount in [1, 2, 3, 4, 5]:
+                explanations_noise = data_utils.load_explanations_noisy(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=noise_amount)
+                explanations_noise_fold = [explanations_noise[idx] for idx in indices]
+                faithfulness_scores = metrics.faithfulness(model, dataset_fold, explanations_noise_fold, k, metric_names, device=device)
+                for i in range(len(metric_names)):
+                    faithfulness_scores_dict[metric_names[i]].append(faithfulness_scores[i])
+            if args.folded:
+                torch.save(faithfulness_scores_dict, result_folder + f'faithfulness_under_noise_{args.gnn_type}_run_{args.explainer_run}_fold_{fold}.pt')
+            else:
+                torch.save(faithfulness_scores_dict, result_folder + f'faithfulness_under_noise_{args.gnn_type}_run_{args.explainer_run}.pt')
         elif args.explanation_metric == 'stability_noise':
             ks = [1, 2, 3, 4, 5]
             metric_names = ['jaccard']
             robustness_scores_dict = {metric: [] for metric in metric_names}
             top_k = 10
             for k in ks:
-                explanations_noise = data_utils.load_explanations_noisy(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=k)
+                if args.explainer_name == 'subgraphx':
+                    explanations_noise = data_utils.load_explanations_noisy_test(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=k)
+                else:
+                    explanations_noise = data_utils.load_explanations_noisy(args.dataset, args.explainer_name, args.gnn_type, device, args.explainer_run, k=k)
                 explanations_noise_fold = [explanations_noise[idx] for idx in indices]
                 robustness_scores = metrics.robustness(explanations_fold, explanations_noise_fold, top_k, metric_names)
                 for i in range(len(metric_names)):

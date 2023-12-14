@@ -8,7 +8,7 @@ from matplotlib import rcParams
 rcParams['pdf.fonttype'] = 42
 rcParams['ps.fonttype'] = 42
 
-methods = ["pgexplainer", "tagexplainer_1", 'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer']
+methods = ["pgexplainer", "tagexplainer_1", 'cff_1.0', 'rcexplainer_1.0', 'gnnexplainer', 'gem', 'subgraphx']
 method_name_map = {
     "pgexplainer": "PGExplainer",
     "tagexplainer_1": "TAGExplainer",
@@ -40,7 +40,7 @@ colors = {
     "subgraphx": "brown"
 }
 
-folded = False
+folded = True
 
 if not folded:
     # read results
@@ -127,7 +127,7 @@ for col_i in range(ncols):
         ax.set_ylabel('Jaccard Similarity', fontsize=labelsize)
     ax.tick_params(axis='x', labelsize=ticksize)
     ax.tick_params(axis='y', labelsize=ticksize)
-    ax.set_xlim(0, 6)
+    ax.set_xlim(0.5, 5.5)
     ax.grid(True)
 
     count += 1
@@ -145,7 +145,7 @@ axes[2].legend(handles=ls, labels=method_names,
                loc='upper center', bbox_to_anchor=(-0.2, -0.2), fancybox=False, shadow=False, ncol=len(methods), fontsize=labelsize)
 
 if not folded:
-    fig.savefig(f'plots/stability_noise_{gnn_type}.pdf', bbox_inches='tight')
+    fig.savefig(f'plots/stability_noise_{gnn_type}_2.pdf', bbox_inches='tight')
 else:
-    fig.savefig(f'plots/stability_noise_{gnn_type}_fold.pdf', bbox_inches='tight')
+    fig.savefig(f'plots/stability_noise_{gnn_type}_fold_2.pdf', bbox_inches='tight')
 plt.show(tight_layout=True)

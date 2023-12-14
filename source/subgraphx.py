@@ -21,6 +21,7 @@ parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'])
 parser.add_argument('--explain_test_only', action='store_true')  # for scalability
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 
 args = parser.parse_args()
 
@@ -73,18 +74,42 @@ if args.explain_test_only:
     data_indices = test_indices
 else:
     data_indices = range(len(dataset))
-explanations = []
-for index in tqdm(data_indices):
-    graph = dataset[index]
-    subgraphx = SubgraphX(model=model, num_classes=2, device=args.device)
-    _, explanation, related_preds = subgraphx(graph.x.to(device), graph.edge_index.to(device), graph.y.to(device))
-    explanation_weights = get_explanations_from_subgraphx_results(explanation[0], graph)
 
-    explanation_ = Data(
-        edge_index=graph.edge_index.clone(),
-        x=graph.x.clone(),
-        y=graph.y.clone(),
-        edge_weight=explanation_weights.clone()
-    )
-    explanations.append(explanation_)
-torch.save(explanations, explanations_path)
+if args.robustness == 'na':
+    explanations = []
+    for index in tqdm(data_indices):
+        graph = dataset[index]
+        subgraphx = SubgraphX(model=model, num_classes=2, device=args.device)
+        _, explanation, related_preds = subgraphx(graph.x.to(device), graph.edge_index.to(device), graph.y.to(device))
+        explanation_weights = get_explanations_from_subgraphx_results(explanation[0], graph)
+
+        explanation_ = Data(
+            edge_index=graph.edge_index.clone(),
+            x=graph.x.clone(),
+            y=graph.y.clone(),
+            edge_weight=explanation_weights.clone()
+        )
+        explanations.append(explanation_)
+    torch.save(explanations, explanations_path)
+elif args.robustness == 'topology_random':
+    for noise in [1, 2, 3, 4, 5]:
+        if not args.explain_test_only:
+            explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
+        else:
+            explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}_test.pt')
+        explanations = []
+        noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+        for index in tqdm(data_indices):
+            graph = noisy_dataset[index]
+            subgraphx = SubgraphX(model=model, num_classes=2, device=args.device)
+            _, explanation, related_preds = subgraphx(graph.x.to(device), graph.edge_index.to(device), graph.y.to(device))
+            explanation_weights = get_explanations_from_subgraphx_results(explanation[0], graph)
+
+            explanation_ = Data(
+                edge_index=graph.edge_index.clone(),
+                x=graph.x.clone(),
+                y=graph.y.clone(),
+                edge_weight=explanation_weights.clone()
+            )
+            explanations.append(explanation_)
+        torch.save(explanations, explanations_path)

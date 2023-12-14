@@ -32,7 +32,7 @@ parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'])
 parser.add_argument('--epochs', type=int, default=300)
-parser.add_argument('--robustness', action='store_true')
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 parser.add_argument('--top_k', type=int, default=25)
 parser.add_argument('--weighted', action='store_true')
 parser.add_argument('--gae3', action='store_true')
@@ -88,9 +88,7 @@ for i in range(len(dataset)):
             test_indices.remove(i)
     distillations.append(distillation)
 
-distillations = [torch.load(os.path.join(distillation_folder, f'graph_gt_{i}.pt')) for i in range(len(dataset))]
 feat_dim = distillations[0]['features'].shape[-1]
-
 preds = np.stack([distillations[i]['pred'][0] for i in range(len(dataset))])
 preds = np.argmax(preds, axis=1)
 labels = np.stack([distillations[i]['label'][0] for i in range(len(dataset))])
@@ -228,82 +226,107 @@ else:
 best_explainer_model_path = os.path.join(result_folder, f'best_model_base_{args.gnn_type}_run_{args.gnn_run}_explainer_run_{args.explainer_run}.pt')
 args.best_explainer_model_path = best_explainer_model_path
 explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}.pt')
-if args.dataset in ['Tree-of-Life']:
-    args.method = 'regression'
-else:
-    args.method = 'classification'
 
-start_epoch = 1
-train_graphs = GraphSampler(train_indices, distillations)
-train_dataset = torch.utils.data.DataLoader(
-    train_graphs,
-    batch_size=1,
-    shuffle=False,
-    num_workers=0,
-)
-val_graphs = GraphSampler(val_indices, distillations)
-val_dataset = torch.utils.data.DataLoader(
-    val_graphs,
-    batch_size=1,
-    shuffle=False,
-    num_workers=0,
-)
-test_graphs = GraphSampler(test_indices, distillations)
-test_dataset = torch.utils.data.DataLoader(
-    test_graphs,
-    batch_size=1,
-    shuffle=False,
-    num_workers=0,
-)
+if args.robustness == 'na':
+    start_epoch = 1
+    train_graphs = GraphSampler(train_indices, distillations)
+    train_dataset = torch.utils.data.DataLoader(
+        train_graphs,
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+    )
+    val_graphs = GraphSampler(val_indices, distillations)
+    val_dataset = torch.utils.data.DataLoader(
+        val_graphs,
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+    )
+    test_graphs = GraphSampler(test_indices, distillations)
+    test_dataset = torch.utils.data.DataLoader(
+        test_graphs,
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+    )
 
-model.train()
-start_time = time.time()
-best_loss = 10000
-patience = 15
-current_patience = 0
-for epoch in tqdm(range(start_epoch, args.epochs + 1)):
-    train_losses = []
-    for batch_idx, data in enumerate(train_dataset):
-        optimizer.zero_grad()
-        recovered, mu, logvar = model(data['sub_feat'].to(device), data['adj_norm'].to(device))
-        loss = criterion(recovered, mu, logvar, data)
-        loss.mean().backward()
-        nn.utils.clip_grad_norm_(model.parameters(), algo_conf['max_grad_norm'])
-        optimizer.step()
-        train_losses += [loss.view(-1)]
-        sys.stdout.flush()
+    model.train()
+    start_time = time.time()
+    best_loss = 10000
+    patience = 15
+    current_patience = 0
+    for epoch in tqdm(range(start_epoch, args.epochs + 1)):
+        train_losses = []
+        for batch_idx, data in enumerate(train_dataset):
+            optimizer.zero_grad()
+            recovered, mu, logvar = model(data['sub_feat'].to(device), data['adj_norm'].to(device))
+            loss = criterion(recovered, mu, logvar, data)
+            loss.mean().backward()
+            nn.utils.clip_grad_norm_(model.parameters(), algo_conf['max_grad_norm'])
+            optimizer.step()
+            train_losses += [loss.view(-1)]
+            sys.stdout.flush()
 
-    train_loss = (torch.cat(train_losses)).mean().item()
-    val_loss = eval_model(val_dataset)
-    if args.early_stop and val_loss < best_loss:
-        best_loss = val_loss
-        torch.save(model.state_dict(), best_explainer_model_path)
-        current_patience = 0
-    else:
-        current_patience += 1
-        if current_patience > patience:
-            break
-
-checkpoint = torch.load(best_explainer_model_path)
-model.load_state_dict(checkpoint)
-
-model.eval()
-with torch.no_grad():
-    explanations = []
-    for idx in tqdm(range(len(dataset))):
-        graph_pyg = dataset[idx]
-        distillation = distillations[idx]
-        if distillation['adj_y'] is None:
-            explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=torch.ones(graph_pyg.edge_index.shape[1]))
+        train_loss = (torch.cat(train_losses)).mean().item()
+        val_loss = eval_model(val_dataset)
+        if args.early_stop and val_loss < best_loss:
+            best_loss = val_loss
+            torch.save(model.state_dict(), best_explainer_model_path)
+            current_patience = 0
         else:
-            data = load_graph(distillation, idx)
-            sub_adj = data['sub_adj']
-            adj_norm = data['adj_norm']
-            sub_feat = data['sub_feat']
-            sub_loss_diff = data['sub_loss_diff']
-            recovered, mu, logvar = model(sub_feat.unsqueeze(0).to(device), adj_norm.unsqueeze(0).to(device))
-            recovered = recovered.squeeze(0)
-            graph_pyg = dataset[data['graph_idx'].item()]
-            explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=recovered[graph_pyg.edge_index[0], graph_pyg.edge_index[1]].detach().cpu().clone())
-        explanations.append(explanation)
-    torch.save(explanations, explanations_path)
+            current_patience += 1
+            if current_patience > patience:
+                break
+
+    checkpoint = torch.load(best_explainer_model_path, map_location=device)
+    model.load_state_dict(checkpoint)
+
+    model.eval()
+
+    with torch.no_grad():
+        explanations = []
+        for idx in tqdm(range(len(dataset))):
+            graph_pyg = dataset[idx]
+            distillation = distillations[idx]
+            if distillation['adj_y'] is None:
+                explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=torch.ones(graph_pyg.edge_index.shape[1]))
+            else:
+                data = load_graph(distillation, idx)
+                sub_adj = data['sub_adj']
+                adj_norm = data['adj_norm']
+                sub_feat = data['sub_feat']
+                sub_loss_diff = data['sub_loss_diff']
+                recovered, mu, logvar = model(sub_feat.unsqueeze(0).to(device), adj_norm.unsqueeze(0).to(device))
+                recovered = recovered.squeeze(0)
+                graph_pyg = dataset[data['graph_idx']]
+                explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=recovered[graph_pyg.edge_index[0], graph_pyg.edge_index[1]].detach().cpu().clone())
+            explanations.append(explanation)
+        torch.save(explanations, explanations_path)
+elif args.robustness == 'topology_random':
+    checkpoint = torch.load(best_explainer_model_path, map_location=device)
+    model.load_state_dict(checkpoint)
+    model.eval()
+    with torch.no_grad():
+        for noise in [1, 2, 3, 4, 5]:
+            distillation_noise_path = os.path.join(result_folder, f'distillation_{args.gnn_type}_{args.gnn_run}_noise_{noise}')
+            distillations = [torch.load(os.path.join(distillation_noise_path, f'graph_gt_{i}.pt')) for i in range(len(dataset))]
+            explanations_path = os.path.join(result_folder, f'explanations_{args.gnn_type}_run_{args.explainer_run}_noise_{noise}.pt')
+            explanations = []
+            noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+            for idx in tqdm(range(len(noisy_dataset))):
+                distillation = distillations[idx]
+                if distillation['adj_y'] is None:
+                    explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=torch.ones(graph_pyg.edge_index.shape[1]))
+                else:
+                    data = load_graph(distillation, idx)
+                    sub_adj = data['sub_adj']
+                    adj_norm = data['adj_norm']
+                    sub_feat = data['sub_feat']
+                    sub_loss_diff = data['sub_loss_diff']
+                    recovered, mu, logvar = model(sub_feat.unsqueeze(0).to(device), adj_norm.unsqueeze(0).to(device))
+                    recovered = recovered.squeeze(0)
+                    graph_pyg = noisy_dataset[data['graph_idx']]
+                    explanation = Data(x=graph_pyg.x.clone(), edge_index=graph_pyg.edge_index.clone(), edge_weight=recovered[graph_pyg.edge_index[0], graph_pyg.edge_index[1]].detach().cpu().clone())
+                explanations.append(explanation)
+            torch.save(explanations, explanations_path)

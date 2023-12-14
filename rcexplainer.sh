@@ -20,6 +20,16 @@ taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $dev
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset IMDB-B
 taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_random --lambda_ 1.0 --dataset AIDS
 
+# collect explanations from noisy features datasets
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness feature --lambda_ 1.0 --dataset Mutagenicity
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness feature --lambda_ 1.0 --dataset Proteins
+
+# collect explanations from topology adversarial attacked datasets
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_adversarial --lambda_ 1.0 --dataset Mutagenicity
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_adversarial --lambda_ 1.0 --dataset Proteins
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_adversarial --lambda_ 1.0 --dataset IMDB-B
+taskset -c $cpus python source/rcexplainer.py --gnn_type $gnn_type --device $device --robustness topology_adversarial --lambda_ 1.0 --dataset AIDS
+
 # stability seeds
 seeds="2 3"
 for seed in $seeds; do

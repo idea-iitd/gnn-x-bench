@@ -121,6 +121,13 @@ class GNNTrainer:
             else:
                 self.dataset = data_utils.load_explanations(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
             self.dataset = data_utils.select_top_k_explanations(self.dataset, self.top_k)
+        elif self.task == 'reverse_reproducibility':
+            assert self.explainer_name is not None
+            if self.explainer_name == 'subgraphx':
+                self.dataset = data_utils.load_explanations_test(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
+            else:
+                self.dataset = data_utils.load_explanations(self.dataset_name, self.explainer_name, self.gnn_type, device='cpu', run=1)
+            self.dataset = data_utils.remove_top_k_explanations(self.dataset, self.top_k)
 
         splits, indices = data_utils.split_data(self.dataset)
         self.train_set, self.valid_set, self.test_set = splits

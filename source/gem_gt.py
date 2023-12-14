@@ -24,7 +24,7 @@ parser.add_argument('--device', type=int, default=0)
 parser.add_argument('--gnn_run', type=int, default=1)
 parser.add_argument('--explainer_run', type=int, default=1)
 parser.add_argument('--gnn_type', type=str, default='gcn', choices=['gcn', 'gat', 'gin', 'sage'])
-parser.add_argument('--robustness', action='store_true')
+parser.add_argument('--robustness', type=str, default='na', choices=['topology_random', 'topology_adversarial', 'feature', 'na'], help="na by default means we do not run for perturbed data")
 parser.add_argument('--top_k', type=int, default=25)
 
 # we allow disconnected graphs
@@ -72,11 +72,6 @@ def graph_labeling(G):
 
 
 def generate_gt(device, model):
-    ce = torch.nn.CrossEntropyLoss(reduction='none')
-    distillation_folder = os.path.join(result_folder, 'distillation')
-    if not os.path.exists(distillation_folder):
-        os.mkdir(distillation_folder)
-
     def change_graph_to_feat_adj(graph):
         feat = graph.x.float()
         if graph.edge_index.shape[1] == 0:
@@ -186,8 +181,22 @@ def generate_gt(device, model):
             }
         torch.save(save_dict, os.path.join(distillation_folder, f'graph_gt_{graph_idx}.pt'))
 
-    for idx in tqdm(range(len(dataset))):
-        run(dataset[idx], idx, args.top_k)
+    ce = torch.nn.CrossEntropyLoss(reduction='none')
+
+    if args.robustness == 'na':
+        distillation_folder = os.path.join(result_folder, f'distillation_{args.gnn_type}_{args.gnn_run}')
+        if not os.path.exists(distillation_folder):
+            os.mkdir(distillation_folder)
+        for idx in tqdm(range(len(dataset))):
+            run(dataset[idx], idx, args.top_k)
+    elif args.robustness == 'topology_random':
+        for noise in [1, 2, 3, 4, 5]:
+            distillation_folder = os.path.join(result_folder, f'distillation_{args.gnn_type}_{args.gnn_run}_noise_{noise}')
+            if not os.path.exists(distillation_folder):
+                os.mkdir(distillation_folder)
+            noisy_dataset = data_utils.load_dataset(data_utils.get_noisy_dataset_name(dataset_name=args.dataset, noise=noise))
+            for idx in tqdm(range(len(dataset))):
+                run(noisy_dataset[idx], idx, args.top_k)
 
 
 generate_gt(device, model)

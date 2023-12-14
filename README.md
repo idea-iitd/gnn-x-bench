@@ -68,7 +68,7 @@ If you want to reproduce the evaluations, you can run the following command:
 
 ### Reproducibility Experiments
 
-Reproducibility experiments needs the explanations from the explainers. It trains from-scratch GNNs using the explanations and evaluate them. We use top-{5, 10, 15, 20, 25} from explanations and 
+Reproducibility experiments needs the explanations from the explainers. It trains from-scratch GNNs using the explanations and evaluate them. We use top-1 to top-10 from explanations and 
 re-train them.
 
 We already provide our run performance but, you can run the following command to run reproducibility experiments:

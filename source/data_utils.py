@@ -434,6 +434,126 @@ class SentiGraphDataset(InMemoryDataset):
         torch.save((self.data, self.slices, self.supplement), self.processed_paths[0])
 
 
+class MutagenicityFeatureNoisy(Dataset):
+    def __init__(self, root, noise, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.noise = noise
+        self.name = f'MutagenicityFeatureNoisy{noise}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(MutagenicityFeatureNoisy, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def process(self):
+        raise NotImplementedError
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
+class MutagFeatureNoisy(Dataset):
+    def __init__(self, root, noise, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.noise = noise
+        self.name = f'MutagenicityFeatureNoisy{noise}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='MUTAG', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(MutagFeatureNoisy, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def process(self):
+        raise NotImplementedError
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
 class ProteinsFeatureNoisy(Dataset):
     def __init__(self, root, noise, transform=None, pre_transform=None):
         """
@@ -528,6 +648,109 @@ class ProteinsFeatureNoisy(Dataset):
         return data
 
 
+class MutagenicityTopologyAdversarialAttack(Dataset):
+    def __init__(self, root, flip_count, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.flip_count = flip_count
+        self.name = f'MutagenicityTopologyAdversarialAttack{flip_count}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='Mutagenicity', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(MutagenicityTopologyAdversarialAttack, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def random_sample_flip(self, graph, flip_count):
+        random.seed(0)
+        np.random.seed(0)
+        edges_to_flip = set()
+        while len(edges_to_flip) < flip_count:
+            patience = 100
+            while patience > 0:
+                all_nodes = range(graph.num_nodes)
+                allowed_nodes = all_nodes
+                u = np.random.choice(allowed_nodes, replace=False, )
+                v = np.random.choice(allowed_nodes, replace=False, )
+                if u == v:
+                    patience -= 1
+                    continue
+                u, v = min(u, v), max(u, v)
+                edges_to_flip.add((u, v))
+                break
+            if patience < 0:
+                pass
+        return edges_to_flip
+
+    def flip_edges(self, graph, edges_to_flip):
+        adj = to_dense_adj(graph.edge_index, max_num_nodes=graph.num_nodes).squeeze()
+        for u, v in edges_to_flip:
+            if adj[u, v] == 1:
+                adj[u, v] = 0
+                adj[v, u] = 0
+            else:
+                adj[u, v] = 1
+                adj[v, u] = 1
+        new_edge_index = dense_to_sparse(adj)[0]
+        data = Data(edge_index=new_edge_index.clone(),
+                    x=graph.x.clone(),
+                    y=graph.y.clone())
+        return data
+
+    def noise_graph(self, graph, flip_count):
+        edges_to_flip = self.random_sample_flip(graph, flip_count)
+        new_data = self.flip_edges(graph, edges_to_flip)
+        return new_data
+
+    def process(self):
+        for i, graph in enumerate(self.original_graphs):
+            data = self.noise_graph(graph, self.flip_count)
+            torch.save(data, os.path.join(self.processed_dir, f'data_{i}.pt'))
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
 class ProteinsTopologyAdversarialAttack(Dataset):
     def __init__(self, root, flip_count, transform=None, pre_transform=None):
         """
@@ -595,7 +818,214 @@ class ProteinsTopologyAdversarialAttack(Dataset):
         return edges_to_flip
 
     def flip_edges(self, graph, edges_to_flip):
-        adj = to_dense_adj(graph.edge_index).squeeze()
+        adj = to_dense_adj(graph.edge_index, max_num_nodes=graph.num_nodes).squeeze()
+        for u, v in edges_to_flip:
+            if adj[u, v] == 1:
+                adj[u, v] = 0
+                adj[v, u] = 0
+            else:
+                adj[u, v] = 1
+                adj[v, u] = 1
+        new_edge_index = dense_to_sparse(adj)[0]
+        data = Data(edge_index=new_edge_index.clone(),
+                    x=graph.x.clone(),
+                    y=graph.y.clone())
+        return data
+
+    def noise_graph(self, graph, flip_count):
+        edges_to_flip = self.random_sample_flip(graph, flip_count)
+        new_data = self.flip_edges(graph, edges_to_flip)
+        return new_data
+
+    def process(self):
+        for i, graph in enumerate(self.original_graphs):
+            data = self.noise_graph(graph, self.flip_count)
+            torch.save(data, os.path.join(self.processed_dir, f'data_{i}.pt'))
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
+class IMDBTopologyAdversarialAttack(Dataset):
+    def __init__(self, root, flip_count, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.flip_count = flip_count
+        self.name = f'IMDBTopologyAdversarialAttack{flip_count}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='IMDB-BINARY', pre_transform=IMDBPreTransform())
+        self.graph_count = len(self.original_graphs)
+
+        super(IMDBTopologyAdversarialAttack, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def random_sample_flip(self, graph, flip_count):
+        random.seed(0)
+        np.random.seed(0)
+        edges_to_flip = set()
+        while len(edges_to_flip) < flip_count:
+            patience = 100
+            while patience > 0:
+                all_nodes = range(graph.num_nodes)
+                allowed_nodes = all_nodes
+                u = np.random.choice(allowed_nodes, replace=False, )
+                v = np.random.choice(allowed_nodes, replace=False, )
+                if u == v:
+                    patience -= 1
+                    continue
+                u, v = min(u, v), max(u, v)
+                edges_to_flip.add((u, v))
+                break
+            if patience < 0:
+                pass
+        return edges_to_flip
+
+    def flip_edges(self, graph, edges_to_flip):
+        adj = to_dense_adj(graph.edge_index, max_num_nodes=graph.num_nodes).squeeze()
+        for u, v in edges_to_flip:
+            if adj[u, v] == 1:
+                adj[u, v] = 0
+                adj[v, u] = 0
+            else:
+                adj[u, v] = 1
+                adj[v, u] = 1
+        new_edge_index = dense_to_sparse(adj)[0]
+        data = Data(edge_index=new_edge_index.clone(),
+                    x=graph.x.clone(),
+                    y=graph.y.clone())
+        return data
+
+    def noise_graph(self, graph, flip_count):
+        edges_to_flip = self.random_sample_flip(graph, flip_count)
+        new_data = self.flip_edges(graph, edges_to_flip)
+        return new_data
+
+    def process(self):
+        for i, graph in enumerate(self.original_graphs):
+            data = self.noise_graph(graph, self.flip_count)
+            torch.save(data, os.path.join(self.processed_dir, f'data_{i}.pt'))
+
+    def len(self):
+        return self.graph_count
+
+    def get(self, idx):
+        """ - Equivalent to __getitem__ in pytorch
+            - Is not needed for PyG's InMemoryDataset
+        """
+        data = torch.load(os.path.join(self.processed_dir,
+                                       f'data_{idx}.pt'))
+        return data
+
+
+class AIDSTopologyAdversarialAttack(Dataset):
+    def __init__(self, root, flip_count, transform=None, pre_transform=None):
+        """
+        root = Where the dataset should be stored. This folder is split
+        into raw_dir (downloaded dataset) and processed_dir (processed data).
+        """
+        self.root = root
+        self.flip_count = flip_count
+        self.name = f'AIDSTopologyAdversarialAttack{flip_count}'
+        self.cleaned = False
+        self.max_graph_size = float('inf')
+        self.original_graphs = TUDataset(root=root, name='AIDS', use_node_attr=True)
+        self.graph_count = len(self.original_graphs)
+
+        super(AIDSTopologyAdversarialAttack, self).__init__(root, transform, pre_transform)
+
+    @property
+    def raw_file_names(self):
+        """ If this file exists in raw_dir, the download is not triggered.
+            (The download func. is not implemented here)
+        """
+        return []
+
+    @property
+    def processed_file_names(self):
+        """ If these files are found in processed_dir, processing is skipped"""
+        return [f'data_{i}.pt' for i in range(self.graph_count)]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_dir(self) -> str:
+        name = f'raw{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def processed_dir(self) -> str:
+        name = f'processed{"_cleaned" if self.cleaned else ""}'
+        return os.path.join(self.root, self.name, name)
+
+    @property
+    def num_classes(self) -> int:
+        return 2
+
+    def random_sample_flip(self, graph, flip_count):
+        random.seed(0)
+        np.random.seed(0)
+        edges_to_flip = set()
+        pair_count = graph.num_nodes * (graph.num_nodes - 1) // 2
+        while len(edges_to_flip) < flip_count and len(edges_to_flip) < pair_count:
+            patience = 100
+            while patience > 0:
+                all_nodes = range(graph.num_nodes)
+                allowed_nodes = all_nodes
+                u = np.random.choice(allowed_nodes, replace=False, )
+                v = np.random.choice(allowed_nodes, replace=False, )
+                if u == v:
+                    patience -= 1
+                    continue
+                u, v = min(u, v), max(u, v)
+                edges_to_flip.add((u, v))
+                break
+            if patience < 0:
+                pass
+        return edges_to_flip
+
+    def flip_edges(self, graph, edges_to_flip):
+        adj = to_dense_adj(graph.edge_index, max_num_nodes=graph.num_nodes).squeeze()
         for u, v in edges_to_flip:
             if adj[u, v] == 1:
                 adj[u, v] = 0
@@ -692,13 +1122,23 @@ def get_noisy_dataset_name(dataset_name, noise):
 def get_noisy_feature_dataset_name(dataset_name, noise):
     if dataset_name == 'Proteins':
         return f'ProteinsFeatureNoisy{noise}'
+    elif dataset_name == 'Mutagenicity':
+        return f'MutagenicityFeatureNoisy{noise}'
+    elif dataset_name == 'Mutag':
+        return f'MutagFeatureNoisy{noise}'
     else:
         raise NotImplementedError
 
 
 def get_topology_adversarial_attack_dataset_name(dataset_name, flip_count):
-    if dataset_name == 'Proteins':
+    if dataset_name == 'Mutagenicity':
+        return f'MutagenicityTopologyAdversarialAttack{flip_count}'
+    elif dataset_name == 'Proteins':
         return f'ProteinsTopologyAdversarialAttack{flip_count}'
+    elif dataset_name == 'IMDB-B':
+        return f'IMDBTopologyAdversarialAttack{flip_count}'
+    elif dataset_name == 'AIDS':
+        return f'AIDSTopologyAdversarialAttack{flip_count}'
     else:
         raise NotImplementedError
 
@@ -723,8 +1163,17 @@ def load_dataset(dataset_name, root='data/'):
     elif "MutagenicityNoisy" in dataset_name:
         noise = int(dataset_name[17:])
         data = MutagenicityNoisy(root=root, noise=noise)
+    elif 'MutagenicityFeatureNoisy' in dataset_name:
+        noise = int(dataset_name[24:])
+        data = MutagenicityFeatureNoisy(root=root, noise=noise)
+    elif 'MutagenicityTopologyAdversarialAttack' in dataset_name:
+        flip = int(dataset_name[37:])
+        data = MutagenicityTopologyAdversarialAttack(root=root, flip_count=flip)
     elif dataset_name == 'Mutag':
         data = TUDataset(root=root, name='MUTAG', use_node_attr=True)
+    elif 'MutagFeatureNoisy' in dataset_name:
+        noise = int(dataset_name[17:])
+        data = MutagFeatureNoisy(root=root, noise=noise)
     elif dataset_name == 'Proteins':
         data = TUDataset(root=root, name='PROTEINS_full', use_node_attr=True)
     elif "ProteinsNoisy" in dataset_name:
@@ -741,11 +1190,17 @@ def load_dataset(dataset_name, root='data/'):
     elif 'IMDBNoisy' in dataset_name:
         noise = int(dataset_name[9:])
         data = IMDBNoisy(root=root, noise=noise)
+    elif 'IMDBTopologyAdversarialAttack' in dataset_name:
+        flip = int(dataset_name[29:])
+        data = IMDBTopologyAdversarialAttack(root=root, flip_count=flip)
     elif dataset_name == 'AIDS':
         data = TUDataset(root=root, name='AIDS', use_node_attr=True)
     elif 'AIDSNoisy' in dataset_name:
         noise = int(dataset_name[9:])
         data = AIDSNoisy(root=root, noise=noise)
+    elif 'AIDSTopologyAdversarialAttack' in dataset_name:
+        flip = int(dataset_name[29:])
+        data = AIDSTopologyAdversarialAttack(root=root, flip_count=flip)
     elif dataset_name == 'NCI1':
         data = TUDataset(root=root, name='NCI1', use_node_attr=True)
     elif dataset_name == 'Graph-SST2':
@@ -776,9 +1231,14 @@ def load_explanations_noisy(dataset_name, explainer_name, gnn_type, device, run,
     path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_noise_{k}.pt'
     return torch.load(path, map_location=device)
 
+def load_explanations_noisy_test(dataset_name, explainer_name, gnn_type, device, run, k):
+    path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_noise_{k}_test.pt'
+    return torch.load(path, map_location=device)
+
 def load_explanations_noisy_feature(dataset_name, explainer_name, gnn_type, device, run, k):
     path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_feature_noise_{k}.pt'
     return torch.load(path, map_location=device)
+
 
 def load_explanations_topology_adversarial(dataset_name, explainer_name, gnn_type, device, run, k):
     path = f'data/{dataset_name}/{explainer_name}/explanations_{gnn_type}_run_{run}_topology_adversarial_{k}.pt'
@@ -803,6 +1263,48 @@ def select_top_k_explanations(dataset, top_k):
             top_k_dataset.append(new_data)
         else:
             top_k_dataset.append(graph)
+    return top_k_dataset
+
+
+def remove_top_k_explanations(dataset, top_k):
+    top_k_dataset = []
+    for i, graph in enumerate(dataset):
+        num_edges = int(graph.edge_index.shape[1] / 2)
+        if num_edges <= top_k:  # we keep at least one edge on each graph
+            top_k = num_edges - 1
+        if graph.edge_index.shape[1] > 0 and not graph.edge_weight.sum().isnan().item() and not top_k == 0:
+            directed_edge_weight = graph.edge_weight[graph.edge_index[0] <= graph.edge_index[1]]
+            directed_edge_index = graph.edge_index[:, graph.edge_index[0] <= graph.edge_index[1]]
+            idx = directed_edge_weight < directed_edge_weight.topk(min(top_k, directed_edge_weight.shape[0]))[0][-1]
+            directed_edge_index = directed_edge_index[:, idx]
+            new_data = Data(
+                edge_index=directed_edge_index.clone(),
+                x=graph.x.clone()
+            )
+            new_data = ToUndirected()(new_data)
+            new_data = RemoveIsolatedNodes()(new_data)
+            new_data.y = graph.y.clone()
+            if new_data.edge_index.shape[1] == 0:  # get random edge from the original graph with the least edge weight
+                idx = graph.edge_weight == graph.edge_weight.min()
+                np.random.seed(i)
+                random_idx = np.random.choice(idx.nonzero().squeeze().tolist())
+                new_data.edge_index = graph.edge_index[:, random_idx:random_idx + 1].clone()
+                new_data.x = graph.x.clone()
+                new_data = ToUndirected()(new_data)  # TODO: this duplicates y variable as well, why?
+                new_data.y = graph.y.clone()
+                new_data = RemoveIsolatedNodes()(new_data)
+                top_k_dataset.append(new_data)
+            else:
+                top_k_dataset.append(new_data)
+        else:
+            new_data = Data(
+                edge_index=graph.edge_index.clone(),
+                x=graph.x.clone()
+            )
+            new_data = ToUndirected()(new_data)
+            new_data = RemoveIsolatedNodes()(new_data)
+            new_data.y = graph.y.clone()
+            top_k_dataset.append(new_data)
     return top_k_dataset
 
 

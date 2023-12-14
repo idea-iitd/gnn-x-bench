@@ -164,6 +164,12 @@ def robustness(explanations, explanations_under_noise, top_k, metric_names):
             # Find the edges that exist in both edge_index_1 and edge_index_2
             common_edges = [edge for edge in set_edge_index_1 if edge in set_edge_index_2]
 
+            # if explanation under noise and explanation do not have common edges, it is 0 score.
+            if len(common_edges) == 0:
+                for metric_name in metric_names:
+                    scores[metric_name].append(0)
+                continue
+
             # Find the indices of common edges in edge_index_1
             common_edge_indices = [torch.where((edge_index_under_noise == torch.tensor(edge)).sum(dim=1) == 2)[0] for edge in common_edges]
             common_edge_indices = torch.cat(common_edge_indices, dim=0).sort()[0]
@@ -221,6 +227,6 @@ def faithfulness_with_removal(gnn_model, original_graphs, explanations, k, metri
 
     faithfulness_scores = []
     for metric in metric_names:
-        faithfulness_scores.append(prediction_similarity(original_graphs_out, explanations_out, metric))
+        faithfulness_scores.append((original_graphs_out, explanations_out, metric))
 
     return faithfulness_scores

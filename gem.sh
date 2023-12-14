@@ -18,6 +18,12 @@ taskset -c $cpus python source/gem.py --dataset Mutag --gnn_type $gnn_type --dev
 taskset -c $cpus python source/gem.py --dataset AIDS --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label
 taskset -c $cpus python source/gem.py --dataset NCI1 --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label
 
+# collect explanations from noisy datasets
+taskset -c $cpus python source/gem.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label --robustness topology_random
+taskset -c $cpus python source/gem.py --dataset Proteins --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label --robustness topology_random
+taskset -c $cpus python source/gem.py --dataset IMDB-B --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label --robustness topology_random
+taskset -c $cpus python source/gem.py --dataset AIDS --gnn_type $gnn_type --device $device --weighted --gae3 --early_stop --normalize_feat --train_on_positive_label --robustness topology_random
+
 # generate results
 #gnn_type=gcn
 #explainers="gem"

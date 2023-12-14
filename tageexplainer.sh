@@ -17,7 +17,6 @@ for stage_no in $stages; do
   taskset -c $cpus python source/tagexplainer.py --dataset ogbg_molhiv --gnn_type $gnn_type --device cpu --stage $stage_no
 done
 
-
 # collect explanations from noisy datasets
 stages="1 2"
 for stage_no in $stages; do
@@ -25,6 +24,22 @@ for stage_no in $stages; do
   taskset -c $cpus python source/tagexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
   taskset -c $cpus python source/tagexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
   taskset -c $cpus python source/tagexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_random
+done
+
+# collect explanations from noisy features datasets
+stages="1 2"
+for stage_no in $stages; do
+  taskset -c $cpus python source/tagexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --stage $stage_no --robustness feature
+  taskset -c $cpus python source/tagexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --stage $stage_no --robustness feature
+done
+
+# collect explanations from topology adversarial attacked datasets
+stages="1"
+for stage_no in $stages; do
+  taskset -c $cpus python source/tagexplainer.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_adversarial
+  taskset -c $cpus python source/tagexplainer.py --dataset Proteins --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_adversarial
+  taskset -c $cpus python source/tagexplainer.py --dataset IMDB-B --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_adversarial
+  taskset -c $cpus python source/tagexplainer.py --dataset AIDS --gnn_type $gnn_type --device $device --stage $stage_no --robustness topology_adversarial
 done
 
 # stability seeds

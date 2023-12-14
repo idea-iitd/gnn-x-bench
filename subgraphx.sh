@@ -10,6 +10,13 @@ taskset -c $cpus python source/subgraphx.py --dataset Proteins --gnn_type $gnn_t
 taskset -c $cpus python source/subgraphx.py --dataset AIDS --gnn_type $gnn_type --device $device --explain_test_only &
 taskset -c $cpus python source/subgraphx.py --dataset NCI1 --gnn_type $gnn_type --device $device --explain_test_only &
 
+# collect explanations from noisy datasets
+taskset -c $cpus python source/subgraphx.py --dataset Mutagenicity --gnn_type $gnn_type --device $device --robustness topology_random --explain_test_only &
+taskset -c $cpus python source/subgraphx.py --dataset Proteins --gnn_type $gnn_type --device $device --robustness topology_random --explain_test_only &
+taskset -c $cpus python source/subgraphx.py --dataset IMDB-B --gnn_type $gnn_type --device $device --robustness topology_random --explain_test_only &
+taskset -c $cpus python source/subgraphx.py --dataset AIDS --gnn_type $gnn_type --device $device --robustness topology_random --explain_test_only &
+wait
+
 # generate results
 #gnn_type=gcn
 #explainers="subgraphx"

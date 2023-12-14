@@ -18,14 +18,6 @@ taskset -c $cpus python source/reproducibility.py --dataset AIDS --gnn_type $gnn
 taskset -c $cpus python source/reproducibility.py --dataset Mutag --gnn_type $gnn_type --explainer_name tagexplainer_1 --device $device
 taskset -c $cpus python source/reproducibility.py --dataset NCI1 --gnn_type $gnn_type --explainer_name tagexplainer_1 --device $device
 
-# reproducibility for TAGExplainer_2
-taskset -c $cpus python source/reproducibility.py --dataset Mutagenicity --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-taskset -c $cpus python source/reproducibility.py --dataset Proteins --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-taskset -c $cpus python source/reproducibility.py --dataset IMDB-B --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-taskset -c $cpus python source/reproducibility.py --dataset AIDS --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-taskset -c $cpus python source/reproducibility.py --dataset Mutag --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-taskset -c $cpus python source/reproducibility.py --dataset NCI1 --gnn_type $gnn_type --explainer_name tagexplainer_2 --device $device
-
 # reproducibility for RCExplainer
 taskset -c $cpus python source/reproducibility.py --dataset Mutagenicity --gnn_type $gnn_type --explainer_name rcexplainer_1.0 --device $device
 taskset -c $cpus python source/reproducibility.py --dataset Proteins --gnn_type $gnn_type --explainer_name rcexplainer_1.0 --device $device

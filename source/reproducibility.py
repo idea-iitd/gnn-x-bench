@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     print(f'Started: {args.dataset}, {args.gnn_type}, {args.explainer_name}')
 
-    for top_k in [5, 10, 15, 20, 25]:
+    for top_k in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
         trainer = GNNTrainer(dataset_name=args.dataset, gnn_type=args.gnn_type, task='reproducibility', device=args.device, explainer_name=args.explainer_name, top_k=top_k)
         runs = range(args.start_run, args.start_run + args.runs)
         trainer.run(runs=runs)
