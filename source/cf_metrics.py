@@ -251,31 +251,43 @@ def is_connected_check(exp, data_dict, explainer, graph_type='orig'):
             return nx.is_connected(nx_graph)
 
 #check connectivity
-def feasibility(explainer, explanations, indices):          
+def feasibility(explainer, explanations, indices):
     #for test set
-    connected_orig = 0
     connected_orig_total = 0
     connected_cf = 0
     flipped = 0
     for i in indices:
-        data_dict = explanations[i] 
+        data_dict = explanations[i]
         pred_orig = torch.argmax(data_dict['pred']).item()
         pred_cf = torch.argmax(data_dict['pred_cf']).item()
-        
+
         #for counterfactual graph check feasibility
         connected_orig_total += is_connected_check(data_dict['graph'], data_dict,  explainer)
         if(pred_orig != pred_cf):
-            connected_orig += is_connected_check(data_dict['graph'], data_dict, explainer)
+            # connected_orig += is_connected_check(data_dict['graph'], data_dict, explainer)
             if(explainer == 'rcexplainer_0.0'):
                 connected_cf += is_connected_check(data_dict['graph_cf_up'], data_dict, explainer, 'cf')
             else:
                 connected_cf += is_connected_check(data_dict['graph_cf'], data_dict, explainer, 'cf')
             flipped+=1
-        
-    
-    r = connected_orig_total/len(indices)
-    expected_count = r*flipped
-    observed_count = connected_cf
-    chi_squared = ((expected_count- observed_count)**2)/expected_count
-    
-    return expected_count, observed_count, chi_squared
+
+
+    N = flipped #C + C'
+    M = len(indices) #O+O'
+    O = connected_orig_total
+    O_prime = M - O
+    C = connected_cf
+    C_prime = N - C
+    C_E = (O/M)*N
+    C_E_prime = (O_prime/M)*N
+    if(C_E!=0 and C_E_prime!=0): #C_E might be 0
+        chi_squared =  ((C_E - C)**2)/C_E + ((C_E_prime - C_prime)**2)/C_E_prime
+    elif(C_E_prime!=0):
+        #print(f"C_E:{C_E} is 0")
+        chi_squared =  ((C_E_prime - C_prime)**2)/C_E_prime
+    elif(C_E != 0):
+        #print(f"C_E_prime:{C_E_prime} is 0")
+        chi_squared =  ((C_E - C)**2)/C_E
+    else:
+        chi_squared = 0
+    return C_E, C, chi_squared
