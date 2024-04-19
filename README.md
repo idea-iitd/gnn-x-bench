@@ -89,5 +89,7 @@ We use the following files to plot and print the results:
 - [stability_seed_scores.py](stability_seed_scores.py): Prints the results for the stability based on Explainer seed experiments.
 - [stability_base_scores.py](stability_base_scores.py): Prints the results for the stability based on GNN base experiments.
 
-Link to paper: [GNNX-BENCH: Unravelling the Utility of Perturbation-based GNN Explainers through In-depth Benchmarking](https://arxiv.org/abs/2310.01794)
+Links: \
+[GNNX-BENCH: Unravelling the Utility of Perturbation-based GNN Explainers through In-depth Benchmarking](https://arxiv.org/abs/2310.01794) \
+[Slides](https://github.com/idea-iitd/gnn-x-bench/blob/main/ICLR_GNNXBENCH.pdf)
 
